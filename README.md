@@ -61,7 +61,7 @@ runner/                  Everything that is copied to the Pi
   install_service.py       Registers the server as a systemd service
 app/                     The Windows, macOS, and Android app (C#, .NET 10, Avalonia)
 docs/                    Documentation
-examples/                Example scripts (rvr/: Sphero RVR robot; sensors/: camera and Qwiic sensors)
+examples/                Example scripts (rvr/: Sphero RVR; sensors/: camera and Qwiic; showcase/: all together)
 tests/                   Automated tests for the Pi server
 ```
 
