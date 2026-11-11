@@ -131,6 +131,83 @@ public sealed class ConnectionTests
         await StopUncaughtAsync(connection);
     }
 
+    [Fact]
+    public async Task SshStopEndsAScriptWithBackgroundThreadsWaitingForInput()
+    {
+        ConnectionSettings? settings = SshSettings();
+        Assert.SkipWhen(settings is null, "SCRIPT_RUNNER_TEST_SSH_* environment variables are not set");
+        await using var connection = new SshRunnerConnection(settings!, new MemoryHostKeys());
+        await StopSdkLikeScriptAsync(connection);
+    }
+
+    [Fact]
+    public async Task HttpStopEndsAScriptWithBackgroundThreadsWaitingForInput()
+    {
+        string? python = FindPython();
+        Assert.SkipWhen(python is null, "python3 is not installed");
+        using var server = PiServer.Start(python!, TestPin);
+        await using var connection = new HttpRunnerConnection(
+            new ConnectionSettings(ConnectionMode.Http, "127.0.0.1", server.Port, "", TestPin));
+        await StopSdkLikeScriptAsync(connection);
+    }
+
+    /// <summary>
+    /// Like the Sphero SDK: background (non-daemon) threads that never end, and a firmware warning that waits at
+    /// input() while the robot object is being created, outside the script's try block.
+    /// </summary>
+    private static async Task StopSdkLikeScriptAsync(IRunnerConnection connection)
+    {
+        var log = new EventLog(connection);
+        await connection.StartAsync(new[]
+        {
+            Script("sdk_like.py",
+                "import threading, time\n" +
+                "def serial_reader():\n    while True:\n        time.sleep(0.1)\n" +
+                "threading.Thread(target=serial_reader).start()\n" +
+                "print('Press any key to continue...', flush=True)\n" +
+                "input()\n" +
+                "try:\n    time.sleep(60)\nfinally:\n    print('finally ran')\n"),
+        }, "sdk_like.py", TestContext.Current.CancellationToken);
+        await log.WaitForOutputAsync("Press any key to continue...");
+        await connection.StopAsync(TestContext.Current.CancellationToken);
+        ExitedEvent exited = await log.WaitForExitAsync(TimeSpan.FromSeconds(15));
+        Assert.True(exited.Stopped);
+        Assert.False(connection.IsRunning);
+    }
+
+    [Fact]
+    public async Task PiCommandReturnsOutputAndExitCode()
+    {
+        ConnectionSettings? settings = SshSettings();
+        Assert.SkipWhen(settings is null, "SCRIPT_RUNNER_TEST_SSH_* environment variables are not set");
+        CommandResult result = await PiCommand.RunAsync(settings!, new MemoryHostKeys(), "echo hello; exit 3",
+            cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Equal("hello\n", result.Output);
+        Assert.Equal(3, result.ExitCode);
+    }
+
+    [Fact]
+    public async Task ForceStopEndsAScriptThatIgnoresCtrlC()
+    {
+        ConnectionSettings? settings = SshSettings();
+        Assert.SkipWhen(settings is null, "SCRIPT_RUNNER_TEST_SSH_* environment variables are not set");
+        var keys = new MemoryHostKeys();
+        await using var connection = new SshRunnerConnection(settings!, keys);
+        var log = new EventLog(connection);
+        await connection.StartAsync(new[]
+        {
+            Script("stubborn.py", "import signal, time\nsignal.signal(signal.SIGINT, signal.SIG_IGN)\n" +
+                                  "print('ignoring Ctrl+C', flush=True)\nwhile True:\n    time.sleep(0.2)\n"),
+        }, "stubborn.py", TestContext.Current.CancellationToken);
+        await log.WaitForOutputAsync("ignoring Ctrl+C");
+
+        CommandResult result = await PiCommand.RunAsync(settings!, keys, PiCommand.ForceStopAllPython,
+            cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Contains("No Python programs of yours are running.", result.Output, StringComparison.Ordinal);
+        await log.WaitForExitAsync(TimeSpan.FromSeconds(10));
+        Assert.False(connection.IsRunning);
+    }
+
     /// <summary>Most beginners' scripts do not catch KeyboardInterrupt; Stop must still end the run cleanly.</summary>
     private static async Task StopUncaughtAsync(IRunnerConnection connection)
     {

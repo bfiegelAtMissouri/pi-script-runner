@@ -125,6 +125,15 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial bool SpeakSay { get; set; }
 
     [ObservableProperty]
+    public partial string PiCommandText { get; set; } = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSendPiCommand))]
+    public partial bool IsPiCommandRunning { get; set; }
+
+    public bool CanSendPiCommand => !IsPiCommandRunning;
+
+    [ObservableProperty]
     public partial bool SpeakAll { get; set; }
 
     private string PortSettingName => IsSsh ? "sshPort" : "httpPort";
@@ -160,23 +169,38 @@ public sealed partial class MainViewModel : ViewModelBase
         RefreshScripts();
     }
 
-    [RelayCommand]
-    private async Task RunAsync()
+    /// <summary>The connection settings from the screen, or null (with ErrorText set) if something is missing.</summary>
+    private ConnectionSettings? ReadSettings()
     {
         ErrorText = "";
+        if (string.IsNullOrWhiteSpace(Host))
+        {
+            ErrorText = "Enter the Pi's IP address.";
+            return null;
+        }
         if (!int.TryParse(Port, out int port) || port is < 1 or > 65535)
         {
             ErrorText = "The port must be a number from 1 to 65535.";
-            return;
+            return null;
         }
         if (string.IsNullOrEmpty(Secret))
         {
             ErrorText = IsSsh ? "Enter the Pi account's password." : "Enter the Pi's PIN.";
-            return;
+            return null;
         }
         SaveSettings();
-        var wanted = new ConnectionSettings(IsSsh ? ConnectionMode.Ssh : ConnectionMode.Http,
+        return new ConnectionSettings(IsSsh ? ConnectionMode.Ssh : ConnectionMode.Http,
             Host.Trim(), port, User.Trim(), Secret);
+    }
+
+    [RelayCommand]
+    private async Task RunAsync()
+    {
+        ConnectionSettings? wanted = ReadSettings();
+        if (wanted is null)
+        {
+            return;
+        }
         try
         {
             if (connection is null || wanted != connectionSettings)
@@ -239,6 +263,73 @@ public sealed partial class MainViewModel : ViewModelBase
         catch (RunnerException error)
         {
             ErrorText = error.Message;
+        }
+    }
+
+    /// <summary>Runs one command on the Pi (SSH mode), on its own connection, and shows its output.</summary>
+    [RelayCommand]
+    private async Task RunPiCommandAsync()
+    {
+        string command = PiCommandText.Trim();
+        if (0 == command.Length)
+        {
+            return;
+        }
+        await RunOnPiAsync("$ " + command, command);
+    }
+
+    /// <summary>
+    /// Stops every Python program this account started on the Pi, even when the app does not know about it:
+    /// Ctrl+C first (so finally: blocks can stop motors), then force-quit after 2 seconds.
+    /// </summary>
+    [RelayCommand]
+    private async Task ForceStopAsync()
+    {
+        platform.Speech.StopSpeaking();
+        await RunOnPiAsync("Force stop all Python", PiCommand.ForceStopAllPython);
+        if (IsRunning)
+        {
+            // The script's session normally ends by itself once the script is gone; if it does not, close it.
+            for (int waited = 0; IsRunning && waited < 30; ++waited)
+            {
+                await Task.Delay(100);
+            }
+            if (IsRunning)
+            {
+                await CloseConnectionAsync();
+                IsRunning = false;
+                StatusText = "Ready";
+                Append("[The app closed its connection to the stopped script.]\n");
+                ShowOutput();
+            }
+        }
+    }
+
+    private async Task RunOnPiAsync(string title, string command)
+    {
+        ConnectionSettings? target = ReadSettings();
+        if (target is null)
+        {
+            return;
+        }
+        IsPiCommandRunning = true;
+        Handle(parser.Flush());
+        Append("\n[" + title + "]\n");
+        ShowOutput();
+        try
+        {
+            CommandResult result = await PiCommand.RunAsync(target with { Mode = ConnectionMode.Ssh }, settings, command);
+            Append(result.Output.EndsWith('\n') || 0 == result.Output.Length ? result.Output : result.Output + "\n");
+            Append($"[exit code {result.ExitCode?.ToString() ?? "unknown"}]\n");
+        }
+        catch (RunnerException error)
+        {
+            ErrorText = error.Message;
+        }
+        finally
+        {
+            IsPiCommandRunning = false;
+            ShowOutput();
         }
     }
 

@@ -81,6 +81,12 @@ public sealed class UiTests
             Assert.Contains("cleanup done", viewModel.OutputText, StringComparison.Ordinal);
             Assert.Contains("[Stopped", viewModel.OutputText, StringComparison.Ordinal);
             Assert.Empty(viewModel.ErrorText);
+            viewModel.PiCommandText = "echo hello-from-the-pi";
+            viewModel.RunPiCommandCommand.Execute(null);
+        }, DispatcherPriority.Normal, cancel);
+        await WaitUntil(ui, viewModel, () => viewModel.OutputText.Contains("hello-from-the-pi\n[exit code 0]", StringComparison.Ordinal));
+        await ui.InvokeAsync(() =>
+        {
             ui.RunJobs();
             using var frame = window!.CaptureRenderedFrame();
             frame?.Save(Path.Combine(AppContext.BaseDirectory, "ui-session.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());

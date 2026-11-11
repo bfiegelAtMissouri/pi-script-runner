@@ -39,7 +39,7 @@ public sealed class SshRunnerConnection : IRunnerConnection
     private ShellStream? shell;
     private volatile bool running;
     private volatile bool stopRequested;
-    private string? hostKeyProblem;
+    private int stopping;                   // 1 while a stop sequence runs, so a second Stop does not start another
     private CancellationTokenSource? runTimer;
 
     public SshRunnerConnection(ConnectionSettings settings, IHostKeyStore hostKeys)
@@ -120,6 +120,24 @@ public sealed class SshRunnerConnection : IRunnerConnection
         await StopSequenceAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Stops waiting for a script that could not be confirmed stopped, so the app is never stuck in "Stopping".
+    /// Closing the terminal session also sends the script SIGHUP, which the shim turns into Ctrl+C.
+    /// </summary>
+    private void Abandon(string message)
+    {
+        if (!running)
+        {
+            return;
+        }
+        runTimer?.Cancel();
+        running = false;
+        ShellStream? current = shell;
+        shell = null;
+        current?.Dispose();
+        Raise(new ExitedEvent(null, true, message));
+    }
+
     public Task<byte[]> GetFileAsync(string name, CancellationToken cancellationToken = default)
     {
         SftpClient client = sftp ?? throw new RunnerException("Not connected to the Pi.");
@@ -162,66 +180,18 @@ public sealed class SshRunnerConnection : IRunnerConnection
             }
             ssh?.Dispose();
             sftp?.Dispose();
-            hostKeyProblem = null;
-
-            var keyboard = new KeyboardInteractiveAuthenticationMethod(settings.User);
-            keyboard.AuthenticationPrompt += (_, prompt) =>
-            {
-                foreach (AuthenticationPrompt question in prompt.Prompts)
-                {
-                    question.Response = settings.Secret;
-                }
-            };
-            var info = new ConnectionInfo(settings.Host, settings.Port, settings.User,
-                new PasswordAuthenticationMethod(settings.User, settings.Secret), keyboard)
-            {
-                Timeout = TimeSpan.FromSeconds(10),
-            };
-
+            var checker = new HostKeyChecker(settings, hostKeys);
+            ConnectionInfo info = SshSupport.CreateConnectionInfo(settings);
             ssh = new SshClient(info);
             sftp = new SftpClient(info);
-            ssh.HostKeyReceived += CheckHostKey;
-            sftp.HostKeyReceived += CheckHostKey;
-            try
-            {
-                await ssh.ConnectAsync(cancellationToken).ConfigureAwait(false);
-                await sftp.ConnectAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch (SshAuthenticationException error)
-            {
-                throw new RunnerException($"The Pi did not accept the user name or password for {settings.User}.", error);
-            }
-            catch (Exception error) when (error is SshException or System.Net.Sockets.SocketException or TimeoutException)
-            {
-                throw new RunnerException(hostKeyProblem ?? $"Cannot connect to {settings.Host}: {error.Message}", error);
-            }
+            ssh.HostKeyReceived += checker.Check;
+            sftp.HostKeyReceived += checker.Check;
+            await SshSupport.ConnectAsync(ssh, settings, checker, cancellationToken).ConfigureAwait(false);
+            await SshSupport.ConnectAsync(sftp, settings, checker, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             connectLock.Release();
-        }
-    }
-
-    private void CheckHostKey(object? sender, HostKeyEventArgs e)
-    {
-        string fingerprint = "SHA256:" + e.FingerPrintSHA256;
-        string? saved = hostKeys.Find(settings.Host, settings.Port);
-        if (saved is null)
-        {
-            hostKeys.Remember(settings.Host, settings.Port, fingerprint);
-            e.CanTrust = true;
-        }
-        else if (saved == fingerprint)
-        {
-            e.CanTrust = true;
-        }
-        else
-        {
-            e.CanTrust = false;
-            hostKeyProblem =
-                $"The SSH identity (host key) of {settings.Host} has changed since this app last connected. " +
-                "This is expected if the Pi's system was reinstalled; otherwise another computer may be using " +
-                "that address. To trust the new identity, use \"Forget saved SSH key\" and connect again.";
         }
     }
 
@@ -315,8 +285,9 @@ public sealed class SshRunnerConnection : IRunnerConnection
         }
         runTimer?.Cancel();
         running = false;
-        shell?.Dispose();
+        ShellStream? current = shell;
         shell = null;
+        current?.Dispose();
         if (Protocol.LockBusyExitCode == exitCode)
         {
             Raise(new ExitedEvent(null, false,
@@ -357,32 +328,55 @@ public sealed class SshRunnerConnection : IRunnerConnection
         });
     }
 
-    /// <summary>Ctrl+C to the script's Python process only (so its finally: block runs), then terminate, then kill.</summary>
+    /// <summary>
+    /// Ctrl+C to the script's Python process only (so its finally: block runs), then terminate, then kill. Each
+    /// signal is sent over its own short-lived connection, so a busy or stuck script connection cannot block it.
+    /// </summary>
     private async Task StopSequenceAsync(CancellationToken cancellationToken)
     {
-        (string signal, string? notice)[] steps =
+        if (0 != Interlocked.Exchange(ref stopping, 1))
         {
-            ("INT", null),
-            ("TERM", "The script did not stop after Ctrl+C; terminating it."),
-            ("KILL", "The script is still running; forcing it to quit."),
-        };
-        foreach ((string signal, string? notice) in steps)
+            return;                                     // a stop is already in progress
+        }
+        try
         {
-            if (!running)
+            (string signal, string? notice)[] steps =
             {
-                return;
-            }
-            if (notice is not null)
+                ("INT", null),
+                ("TERM", "The script did not stop after Ctrl+C; terminating it."),
+                ("KILL", "The script is still running; forcing it to quit."),
+            };
+            foreach ((string signal, string? notice) in steps)
             {
-                Raise(new NoticeEvent(notice));
+                if (!running)
+                {
+                    return;
+                }
+                if (notice is not null)
+                {
+                    Raise(new NoticeEvent(notice));
+                }
+                try
+                {
+                    await PiCommand.RunAsync(settings, hostKeys, $"pkill -{signal} -f {ScriptProcessPattern}; true",
+                        TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
+                }
+                catch (RunnerException error)
+                {
+                    Raise(new NoticeEvent("Could not send the stop signal: " + error.Message));
+                }
+                DateTime deadline = DateTime.UtcNow + Protocol.StopGrace;
+                while (running && DateTime.UtcNow < deadline)
+                {
+                    await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+                }
             }
-            await Task.Run(() => Execute($"pkill -{signal} -f {ScriptProcessPattern}; true"), cancellationToken)
-                .ConfigureAwait(false);
-            DateTime deadline = DateTime.UtcNow + Protocol.StopGrace;
-            while (running && DateTime.UtcNow < deadline)
-            {
-                await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-            }
+            Abandon("The script could not be confirmed stopped, so the app stopped waiting for it. " +
+                    "If the robot is still running, use \"Force stop all Python\".");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref stopping, 0);
         }
     }
 

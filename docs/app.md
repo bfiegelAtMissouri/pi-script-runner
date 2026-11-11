@@ -38,7 +38,20 @@ the app cannot reach the Pi.
 5. **Stop** (or the Esc key on the desktop) sends Ctrl+C to the script, so its `finally:` block runs. If the script
    does not stop within 3 seconds it is terminated, and then forced to quit if needed.
 
-Each run is stopped automatically after 300 seconds.
+Each run is stopped automatically after 300 seconds. If a script cannot be confirmed stopped after the last
+step, the app stops waiting for it and says so, rather than staying in "Stopping".
+
+### Commands on the Pi (SSH mode)
+
+In SSH mode, a command box under the Run controls runs any command on the Pi and shows its output, for example
+`ps aux | grep python3`. Each command runs on its own short connection, so it works even while a script is
+running or its connection is stuck. Commands that wait for input do not work there, and the app stops waiting for
+a command after 30 seconds.
+
+**Force stop all Python** sends Ctrl+C to every Python program the account started on the Pi (including scripts
+started from the app or with `python3 -`), waits 2 seconds so `finally:` blocks can stop motors, then force-quits
+whatever is left, and lists anything still running. It does not stop the runner server. Use it when a script or a
+previous session is stuck.
 
 ### Speech, sound, and images
 
@@ -66,6 +79,27 @@ The first time the app connects to a Pi over SSH, it saves that Pi's SSH identit
 later connection to the same address presents a different identity, the app refuses to connect and says so. That
 is expected after the Pi's system is reinstalled; otherwise another computer may be using that address. To trust
 the new identity, press **Forget saved SSH key** and connect again.
+
+## The Sphero RVR firmware warning
+
+When the Sphero RVR SDK thinks the robot's firmware is out of date, it prints "A NEWER VERSION OF FIRMWARE IS
+AVAILABLE" and waits at "Press any key to continue..." before the script can run. In the app, type anything in the
+input box and press Enter to continue.
+
+To stop the warning:
+
+- **Update the robot's firmware** with the Sphero EDU app. This removes the warning until Sphero releases newer
+  firmware.
+- **Or turn the check off.** The SDK checks only when more than 7 days have passed since the date stored in a file
+  named `.fw` in the folder that holds the `sphero_sdk` package. Storing a date in late 2037 turns the check off
+  until then (a later date can crash the SDK on 32-bit Raspberry Pi OS). For an SDK installed with pip for the
+  user, run this on the Pi (for example in the app's command box):
+
+  ```bash
+  echo 2145830400 > "$(python3 -c 'import os, sphero_sdk; print(os.path.dirname(os.path.dirname(sphero_sdk.__file__)))')/.fw"
+  ```
+
+  This also removes the few seconds the check adds to every script's start, and its use of the internet.
 
 ## SSH mode details
 

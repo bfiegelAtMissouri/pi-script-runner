@@ -74,6 +74,21 @@
       <CheckBox IsChecked="{Binding SpeakAll}" Content="Speak all output" />
     </WrapPanel>
 
+    <!-- Commands on the Pi (SSH only): each runs on its own connection, so it works even if a script is stuck. -->
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8" IsVisible="{Binding IsSsh}">
+      <Button DockPanel.Dock="Right" Content="Force stop all Python" Command="{Binding ForceStopCommand}"
+              IsEnabled="{Binding CanSendPiCommand}" Margin="8,0,0,0"
+              ToolTip.Tip="Ctrl+C to every Python program you started on the Pi, then force-quit after 2 seconds" />
+      <Button DockPanel.Dock="Right" Content="Run on Pi" Command="{Binding RunPiCommandCommand}"
+              IsEnabled="{Binding CanSendPiCommand}" Margin="8,0,0,0" />
+      <TextBox Text="{Binding PiCommandText}" PlaceholderText="Command to run on the Pi, for example: ps aux | grep python3"
+               FontFamily="Consolas, Menlo, monospace" AutomationProperties.Name="Command to run on the Pi">
+        <TextBox.KeyBindings>
+          <KeyBinding Gesture="Enter" Command="{Binding RunPiCommandCommand}" />
+        </TextBox.KeyBindings>
+      </TextBox>
+    </DockPanel>
+
     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
       <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" />
       <TextBlock Text="{Binding ErrorText}" Foreground="#C62828" TextWrapping="Wrap" FontWeight="SemiBold" />
