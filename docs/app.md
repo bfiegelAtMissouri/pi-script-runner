@@ -61,7 +61,7 @@ app copies `runner_io.py` next to the script on every run, so nothing needs to b
 | Function | App behavior |
 | :--- | :--- |
 | `say(text)` | Spoken with the system's text-to-speech (Windows speech, macOS `say`, Android text-to-speech) |
-| `play(file)` | Played with the system's player. Windows and macOS play `.wav` and `.mp3`; Android also plays `.ogg`. |
+| `play(file)` | Played with the system's player. `.wav` works everywhere. macOS and Android also play `.mp3` (Android also `.ogg`); Windows plays `.mp3` only on computers that have its optional MPEG player, so use `.wav` for Windows users. |
 | `show(file)` | Shown beside the output. The app shows `.png`, `.jpg`, `.gif`, and `.bmp`; `.svg` works only in the browser page. |
 
 ### Passwords and PINs

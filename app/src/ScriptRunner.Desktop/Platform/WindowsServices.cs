@@ -21,16 +21,45 @@ internal sealed class WindowsSpeech : ISpeechService, IDisposable
     public void Dispose() => synthesizer.Dispose();
 }
 
-/// <summary>Windows sound through the Media Control Interface, which plays .wav and .mp3 files.</summary>
+/// <summary>
+/// Windows sound. .wav files play with PlaySound, which every Windows computer has. Other formats (.mp3) go
+/// through the Media Control Interface, whose "mpegvideo" player is missing on some computers.
+/// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed partial class WindowsAudio : IAudioService
+internal sealed class WindowsAudio : IAudioService
 {
+    private const uint SoundFileName = 0x00020000;          // SND_FILENAME: the sound is a file path
+    private const uint SoundNoDefault = 0x00000002;         // SND_NODEFAULT: no system beep if the file fails
     private static int next;
 
     public async Task PlayAsync(string fileName, byte[] data)
     {
         string path = Path.Combine(Path.GetTempPath(), "script-runner-" + Guid.NewGuid().ToString("N") + Path.GetExtension(fileName));
         await File.WriteAllBytesAsync(path, data);
+        try
+        {
+            if (fileName.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
+            {
+                // Synchronous play (no SND_ASYNC) on a worker thread, so the temporary file is deleted only after.
+                bool played = await Task.Run(() => PlaySoundW(path, IntPtr.Zero, SoundFileName | SoundNoDefault));
+                if (!played)
+                {
+                    throw new InvalidOperationException("Windows could not play this .wav file");
+                }
+            }
+            else
+            {
+                await PlayWithMediaControlAsync(path);
+            }
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private static async Task PlayWithMediaControlAsync(string path)
+    {
         string alias = "scriptrunner" + Interlocked.Increment(ref next);
         try
         {
@@ -40,10 +69,14 @@ internal sealed partial class WindowsAudio : IAudioService
                 Send($"play {alias} wait");
             });
         }
+        catch (InvalidOperationException error)
+        {
+            throw new InvalidOperationException(
+                $"this computer cannot play {Path.GetExtension(path)} files ({error.Message}); use a .wav file instead", error);
+        }
         finally
         {
             mciSendStringW($"close {alias}", null, 0, IntPtr.Zero);
-            File.Delete(path);
         }
     }
 
@@ -57,6 +90,9 @@ internal sealed partial class WindowsAudio : IAudioService
             throw new InvalidOperationException(message.ToString());
         }
     }
+
+    [DllImport("winmm.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool PlaySoundW(string sound, IntPtr module, uint flags);
 
     [DllImport("winmm.dll", CharSet = CharSet.Unicode)]
     private static extern int mciSendStringW(string command, StringBuilder? returnValue, int returnLength, IntPtr callback);
