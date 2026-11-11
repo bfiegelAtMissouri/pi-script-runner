@@ -75,6 +75,10 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public bool CanRun => !IsRunning && !string.IsNullOrWhiteSpace(SelectedScript) && !string.IsNullOrWhiteSpace(Host);
 
+    /// <summary>True while the app has a connection to a Pi open (from the first Run until Disconnect).</summary>
+    [ObservableProperty]
+    public partial bool IsConnected { get; set; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSsh), nameof(SecretLabel))]
     public partial int SelectedModeIndex { get; set; }
@@ -206,11 +210,20 @@ public sealed partial class MainViewModel : ViewModelBase
             if (connection is null || wanted != connectionSettings)
             {
                 await CloseConnectionAsync();
-                connection = ConnectionMode.Ssh == wanted.Mode
+                IRunnerConnection created = ConnectionMode.Ssh == wanted.Mode
                     ? new SshRunnerConnection(wanted, settings)
                     : new HttpRunnerConnection(wanted);
-                connection.EventReceived += e => ui.Post(() => OnRunnerEvent(e));
+                // Events from a connection the app has since closed are ignored, so they cannot end a newer run.
+                created.EventReceived += e => ui.Post(() =>
+                {
+                    if (ReferenceEquals(created, connection))
+                    {
+                        OnRunnerEvent(e);
+                    }
+                });
+                connection = created;
                 connectionSettings = wanted;
+                IsConnected = true;
             }
             platform.Speech.StopSpeaking();
             ClearOutput();
@@ -303,6 +316,41 @@ public sealed partial class MainViewModel : ViewModelBase
                 ShowOutput();
             }
         }
+    }
+
+    /// <summary>
+    /// Closes the connection to the Pi at any time and returns the app to Ready. A running script is stopped first:
+    /// in SSH mode closing the session sends it Ctrl+C; in HTTP mode the app asks the server to stop it.
+    /// </summary>
+    [RelayCommand]
+    private async Task DisconnectAsync()
+    {
+        if (connection is null)
+        {
+            return;
+        }
+        platform.Speech.StopSpeaking();
+        bool wasRunning = IsRunning;
+        if (wasRunning && connection is HttpRunnerConnection)
+        {
+            try
+            {
+                using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await connection.StopAsync(limit.Token);
+            }
+            catch (Exception error) when (error is RunnerException or OperationCanceledException)
+            {
+                Append("[Could not ask the Pi to stop the script: " + error.Message + "]\n");
+            }
+        }
+        Handle(parser.Flush());
+        await CloseConnectionAsync();
+        IsRunning = false;
+        StatusText = "Ready";
+        Append(wasRunning
+            ? "\n[Disconnected from the Pi. The script was sent Ctrl+C. If the robot is still moving, use \"Force stop all Python\".]\n"
+            : "\n[Disconnected from the Pi.]\n");
+        ShowOutput();
     }
 
     private async Task RunOnPiAsync(string title, string command)
@@ -539,9 +587,11 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         if (connection is not null)
         {
-            await connection.DisposeAsync();
-            connection = null;
+            IRunnerConnection closing = connection;
+            connection = null;              // first, so events from the closing connection are ignored
             connectionSettings = null;
+            IsConnected = false;
+            await closing.DisposeAsync();
         }
     }
 }

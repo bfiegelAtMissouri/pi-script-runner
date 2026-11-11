@@ -41,6 +41,11 @@ the app cannot reach the Pi.
 Each run is stopped automatically after 300 seconds. If a script cannot be confirmed stopped after the last
 step, the app stops waiting for it and says so, rather than staying in "Stopping".
 
+**Disconnect** closes the app's connection to the Pi and returns the app to Ready. The app keeps its connection
+open between runs, so use Disconnect when the connection seems stuck or before switching Pis. A running script is
+stopped first: in SSH mode closing the session sends it Ctrl+C, and in HTTP mode the app asks the server to stop
+it. The next **Run** opens a new connection.
+
 ### Commands on the Pi (SSH mode)
 
 In SSH mode, a command box under the Run controls runs any command on the Pi and shows its output, for example

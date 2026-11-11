@@ -85,6 +85,28 @@ public sealed class UiTests
             viewModel.RunPiCommandCommand.Execute(null);
         }, DispatcherPriority.Normal, cancel);
         await WaitUntil(ui, viewModel, () => viewModel.OutputText.Contains("hello-from-the-pi\n[exit code 0]", StringComparison.Ordinal));
+
+        // Disconnect while a script waits for input, then run again on a new connection.
+        await ui.InvokeAsync(() =>
+        {
+            Assert.True(viewModel.IsConnected);
+            viewModel.ClearCommand.Execute(null);
+            viewModel.RunCommand.Execute(null);
+        }, DispatcherPriority.Normal, cancel);
+        await WaitUntil(ui, viewModel, () => viewModel.OutputText.Contains("Name? ", StringComparison.Ordinal));
+        await ui.InvokeAsync(() => viewModel.DisconnectCommand.Execute(null), DispatcherPriority.Normal, cancel);
+        await WaitUntil(ui, viewModel, () => viewModel.OutputText.Contains("[Disconnected from the Pi.", StringComparison.Ordinal));
+        await ui.InvokeAsync(() =>
+        {
+            Assert.False(viewModel.IsRunning);
+            Assert.False(viewModel.IsConnected);
+            Assert.True(viewModel.CanRun);
+            viewModel.ClearCommand.Execute(null);
+            viewModel.RunCommand.Execute(null);
+        }, DispatcherPriority.Normal, cancel);
+        await WaitUntil(ui, viewModel, () => viewModel.OutputText.Contains("Name? ", StringComparison.Ordinal));
+        await ui.InvokeAsync(() => viewModel.DisconnectCommand.Execute(null), DispatcherPriority.Normal, cancel);
+        await WaitUntil(ui, viewModel, () => !viewModel.IsConnected);
         await ui.InvokeAsync(() =>
         {
             ui.RunJobs();
