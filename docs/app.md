@@ -69,6 +69,12 @@ app copies `runner_io.py` next to the script on every run, so nothing needs to b
 | `play(file)` | Played with the system's player. `.wav` works everywhere. macOS and Android also play `.mp3` (Android also `.ogg`); Windows plays `.mp3` only on computers that have its optional MPEG player, so use `.wav` for Windows users. |
 | `show(file)` | Shown beside the output. The app shows `.png`, `.jpg`, `.gif`, and `.bmp`; `.svg` works only in the browser page. |
 
+Images are kept in the panel beside the output, newest shown as it arrives, across runs and **Clear output**,
+until **Clear images** (the app keeps the latest 100). ◀ and ▶ move between them. **Save…** saves the image on
+screen, and **Save all…** saves every image to a chosen folder, adding a number to repeated names rather than
+replacing files. The Pi's copy of an image is erased at the start of the next run, so save the images you want to
+keep.
+
 ### Passwords and PINs
 
 - **Remember (secure storage)** saves the password or PIN in the operating system's secure store: Windows

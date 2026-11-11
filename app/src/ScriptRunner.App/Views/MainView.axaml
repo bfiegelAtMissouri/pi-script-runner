@@ -121,11 +121,27 @@
                AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas, Menlo, monospace"
                Background="#10141B" Foreground="#E6EDF3"
                ScrollViewer.VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Program output" />
-      <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="4" MaxWidth="380"
-                  IsVisible="{Binding CurrentImage, Converter={x:Static ObjectConverters.IsNotNull}}">
-        <Image Source="{Binding CurrentImage}" Stretch="Uniform" MaxHeight="480" />
-        <TextBlock Text="{Binding CurrentImageName}" HorizontalAlignment="Center" />
-      </StackPanel>
+      <!-- Images the script showed, one at a time, newest shown when it arrives -->
+      <Grid Grid.Column="1" Margin="8,0,0,0" Width="360" RowDefinitions="*,Auto,Auto,Auto" IsVisible="{Binding HasImages}">
+        <Image Grid.Row="0" Source="{Binding CurrentImage}" Stretch="Uniform" StretchDirection="DownOnly"
+               VerticalAlignment="Top" AutomationProperties.Name="{Binding CurrentImageName}" />
+        <TextBlock Grid.Row="1" Margin="0,4,0,0" Text="{Binding CurrentImageName}" HorizontalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" />
+        <Grid Grid.Row="2" Margin="0,4,0,0" ColumnDefinitions="Auto,*,Auto">
+          <Button Grid.Column="0" Content="◀" Command="{Binding PreviousImageCommand}"
+                  IsEnabled="{Binding CanShowPreviousImage}" ToolTip.Tip="Previous image"
+                  AutomationProperties.Name="Previous image" />
+          <TextBlock Grid.Column="1" Text="{Binding ImagePosition}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <Button Grid.Column="2" Content="▶" Command="{Binding NextImageCommand}"
+                  IsEnabled="{Binding CanShowNextImage}" ToolTip.Tip="Next image"
+                  AutomationProperties.Name="Next image" />
+        </Grid>
+        <WrapPanel Grid.Row="3" Margin="0,4,0,0" HorizontalAlignment="Center">
+          <Button Content="Save…" Click="OnSaveImage" ToolTip.Tip="Save this image" />
+          <Button Content="Save all…" Click="OnSaveAllImages" ToolTip.Tip="Save every image to a folder" />
+          <Button Content="Clear images" Command="{Binding ClearImagesCommand}" />
+        </WrapPanel>
+      </Grid>
     </Grid>
   </DockPanel>
 </UserControl>

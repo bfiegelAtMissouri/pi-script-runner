@@ -49,8 +49,10 @@ public sealed class UiTests
             model.Secret = password!;
             model.AddFiles(new[]
             {
+                ("dot.png", File.ReadAllBytes(Path.Combine(ConnectionTests.RepoRoot(), "tests", "data", "dot.png"))),
                 ("hello.py", Encoding.UTF8.GetBytes(
-                    "import time\nfrom runner_io import say\nname = input('Name? ')\nsay('Hello ' + name)\n" +
+                    "import time\nfrom runner_io import say, show\nshow('dot.png')\nshow('dot.png')\n" +
+                    "name = input('Name? ')\nsay('Hello ' + name)\n" +
                     "try:\n    while True:\n        print('tick')\n        time.sleep(0.3)\nfinally:\n    print('cleanup done')\n")),
             });
             Assert.True(model.CanRun);
@@ -73,6 +75,12 @@ public sealed class UiTests
             Assert.DoesNotContain("@@runner", viewModel.OutputText, StringComparison.Ordinal);
             Assert.Equal(new[] { "Hello Ada" }, speech.Spoken);
             Assert.True(viewModel.IsRunning);
+            Assert.Equal(2, viewModel.Images.Count);                          // the second image did not replace the first
+            Assert.Equal("2 of 2", viewModel.ImagePosition);
+            viewModel.PreviousImageCommand.Execute(null);
+            Assert.Equal("1 of 2", viewModel.ImagePosition);
+            Assert.False(viewModel.CanShowPreviousImage);
+            Assert.True(viewModel.CanShowNextImage);
             viewModel.StopCommand.Execute(null);
         }, DispatcherPriority.Normal, cancel);
         await WaitUntil(ui, viewModel, () => !viewModel.IsRunning);
@@ -107,6 +115,17 @@ public sealed class UiTests
         await WaitUntil(ui, viewModel, () => viewModel.OutputText.Contains("Name? ", StringComparison.Ordinal));
         await ui.InvokeAsync(() => viewModel.DisconnectCommand.Execute(null), DispatcherPriority.Normal, cancel);
         await WaitUntil(ui, viewModel, () => !viewModel.IsConnected);
+        await ui.InvokeAsync(() =>
+        {
+            Assert.Equal(6, viewModel.Images.Count);                          // kept across runs and Clear output
+            Assert.Equal("6 of 6", viewModel.ImagePosition);
+            ui.RunJobs();
+            using var frame = window!.CaptureRenderedFrame();
+            frame?.Save(Path.Combine(AppContext.BaseDirectory, "ui-images.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+            viewModel.ClearImagesCommand.Execute(null);
+            Assert.False(viewModel.HasImages);
+            Assert.Null(viewModel.CurrentImage);
+        }, DispatcherPriority.Normal, cancel);
         await ui.InvokeAsync(() =>
         {
             ui.RunJobs();

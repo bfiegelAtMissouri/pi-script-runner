@@ -119,11 +119,32 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial string ErrorText { get; set; } = "";
 
-    [ObservableProperty]
-    public partial Bitmap? CurrentImage { get; set; }
+    /// <summary>Most images kept; when a new one arrives past this, the oldest is dropped.</summary>
+    public const int MaxImages = 100;
 
+    /// <summary>Every image the scripts have shown, oldest first, kept across runs until Clear images.</summary>
+    public ObservableCollection<ShownImage> Images { get; } = new();
+
+    /// <summary>Which of Images is on screen, or -1 when there are none.</summary>
     [ObservableProperty]
-    public partial string CurrentImageName { get; set; } = "";
+    [NotifyPropertyChangedFor(nameof(CurrentShownImage), nameof(CurrentImage), nameof(CurrentImageName),
+        nameof(ImagePosition), nameof(HasImages), nameof(CanShowPreviousImage), nameof(CanShowNextImage))]
+    public partial int ImageIndex { get; set; } = -1;
+
+    public ShownImage? CurrentShownImage => 0 <= ImageIndex && ImageIndex < Images.Count ? Images[ImageIndex] : null;
+
+    public Bitmap? CurrentImage => CurrentShownImage?.Bitmap;
+
+    public string CurrentImageName => CurrentShownImage?.Name ?? "";
+
+    /// <summary>For example "2 of 5".</summary>
+    public string ImagePosition => HasImages ? $"{ImageIndex + 1} of {Images.Count}" : "";
+
+    public bool HasImages => 0 < Images.Count;
+
+    public bool CanShowPreviousImage => 0 < ImageIndex;
+
+    public bool CanShowNextImage => ImageIndex < Images.Count - 1;
 
     [ObservableProperty]
     public partial bool SpeakSay { get; set; }
@@ -506,12 +527,7 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             byte[] data = await connection!.GetFileAsync(fileName);
             var bitmap = new Bitmap(new MemoryStream(data));
-            ui.Post(() =>
-            {
-                CurrentImage?.Dispose();
-                CurrentImage = bitmap;
-                CurrentImageName = fileName;
-            });
+            ui.Post(() => AddImage(new ShownImage(fileName, data, bitmap)));
         }
         catch (Exception error)
         {
@@ -538,9 +554,61 @@ public sealed partial class MainViewModel : ViewModelBase
         committed.Clear();
         parser = new OutputParser();
         OutputText = "";
-        CurrentImage?.Dispose();
-        CurrentImage = null;
-        CurrentImageName = "";
+    }
+
+    /// <summary>Adds an image at the end and shows it, dropping the oldest past MaxImages.</summary>
+    private void AddImage(ShownImage image)
+    {
+        Images.Add(image);
+        while (MaxImages < Images.Count)
+        {
+            Bitmap oldest = Images[0].Bitmap;
+            Images.RemoveAt(0);
+            oldest.Dispose();
+        }
+        ImageIndex = Images.Count - 1;
+        OnImagesChanged();
+    }
+
+    /// <summary>Updates everything shown about the images, after Images itself changed.</summary>
+    private void OnImagesChanged()
+    {
+        foreach (string name in new[] { nameof(CurrentShownImage), nameof(CurrentImage), nameof(CurrentImageName),
+                     nameof(ImagePosition), nameof(HasImages), nameof(CanShowPreviousImage), nameof(CanShowNextImage) })
+        {
+            OnPropertyChanged(name);
+        }
+    }
+
+    [RelayCommand]
+    private void PreviousImage()
+    {
+        if (CanShowPreviousImage)
+        {
+            --ImageIndex;
+        }
+    }
+
+    [RelayCommand]
+    private void NextImage()
+    {
+        if (CanShowNextImage)
+        {
+            ++ImageIndex;
+        }
+    }
+
+    [RelayCommand]
+    private void ClearImages()
+    {
+        List<ShownImage> old = Images.ToList();
+        Images.Clear();
+        ImageIndex = -1;
+        OnImagesChanged();
+        foreach (ShownImage image in old)
+        {
+            image.Bitmap.Dispose();
+        }
     }
 
     /// <summary>Updates the list of scripts in place, so the selected script stays selected.</summary>
@@ -594,4 +662,11 @@ public sealed partial class MainViewModel : ViewModelBase
             await closing.DisposeAsync();
         }
     }
+}
+
+/// <summary>An image a script showed: the name it used, the file's bytes (for saving), and the decoded picture.</summary>
+public sealed record ShownImage(string Name, byte[] Data, Bitmap Bitmap)
+{
+    /// <summary>The name without any folder, for saving (for example "photo.jpg" for "/tmp/photo.jpg").</summary>
+    public string FileName => Path.GetFileName(Name.Replace('\\', '/'));
 }
