@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pi Script Runner</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #5b6577;
+    --border: #d5dae3; --accent: #1f6feb; --accent-text: #ffffff;
+    --stop: #c62828; --ok: #2e7d32; --term-bg: #10141b; --term-text: #e6edf3;
+    --echo: #7ee787; --notice: #f2cc60; --drop: #eef4ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1218; --panel: #171b23; --text: #e6edf3; --muted: #9aa5b5;
+      --border: #2c3442; --accent: #4c8dff; --accent-text: #0b0e13;
+      --stop: #ef5350; --ok: #66bb6a; --term-bg: #0a0d12; --term-text: #e6edf3;
+      --echo: #7ee787; --notice: #f2cc60; --drop: #1a2333;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0; }
+  .status { font-weight: 600; color: var(--muted); }
+  .status.running { color: var(--ok); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  label { color: var(--muted); }
+  input[type=text], input[type=password] {
+    font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); }
+  button { font: inherit; font-weight: 600; padding: 9px 18px; border-radius: 8px;
+           border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.stop { background: var(--stop); color: #fff; border-color: var(--stop); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  #drop { border: 2px dashed var(--border); border-radius: 10px; padding: 18px; text-align: center;
+          color: var(--muted); cursor: pointer; }
+  #drop.over { border-color: var(--accent); background: var(--drop); color: var(--text); }
+  #files { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+  #files li { display: flex; align-items: center; gap: 8px; }
+  #files .remove { padding: 2px 8px; font-weight: 400; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .layout.has-media { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  @media (max-width: 760px) { .layout.has-media { grid-template-columns: minmax(0, 1fr); } }
+  #output { background: var(--term-bg); color: var(--term-text); border-radius: 10px; margin: 0;
+            padding: 12px; min-height: 320px; max-height: 60vh; overflow: auto;
+            font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  #output .echo { color: var(--echo); }
+  #output .notice { color: var(--notice); }
+  #inputForm { display: flex; gap: 8px; margin-top: 10px; }
+  #inputForm input { flex: 1; min-width: 0; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  #media { display: grid; gap: 10px; align-content: start; }
+  #media figure { margin: 0; }
+  #media img { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); background: #fff; }
+  #media figcaption { color: var(--muted); font-size: 13px; }
+  .hint { color: var(--muted); font-size: 13px; }
+  .error { color: var(--stop); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Pi Script Runner</h1>
+    <span id="status" class="status" role="status">Connecting…</span>
+  </header>
+
+  <section class="panel">
+    <div class="row">
+      <label for="pin">PIN</label>
+      <input id="pin" type="password" inputmode="numeric" autocomplete="off" size="8">
+      <label><input id="speakSay" type="checkbox" checked> Speak say() messages</label>
+      <label><input id="speakAll" type="checkbox"> Speak all output</label>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div id="drop" tabindex="0" role="button" aria-label="Choose files to upload">
+      Drop your .py file here (plus any sound or image files it uses), or click to choose files.
+    </div>
+    <input id="picker" type="file" multiple hidden>
+    <ul id="files"></ul>
+    <div class="row" style="margin-top:12px">
+      <button id="runBtn" class="primary" disabled>Run</button>
+      <button id="stopBtn" class="stop" disabled>Stop (Esc)</button>
+      <button id="clearBtn">Clear output</button>
+      <span id="message" class="error" role="alert"></span>
+    </div>
+  </section>
+
+  <div id="layout" class="layout">
+    <section class="panel">
+      <pre id="output" aria-label="Program output"></pre>
+      <form id="inputForm" autocomplete="off">
+        <input id="inputText" type="text" placeholder="Type input for your program, then press Enter" disabled>
+        <button id="sendBtn" disabled>Send</button>
+      </form>
+      <p class="hint">Stop sends Ctrl+C to your program, so its <code>finally:</code> block runs.</p>
+    </section>
+    <section id="media" class="panel" hidden aria-label="Images from your program"></section>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var TAG = "@@runner ";
+  var MAX_OUTPUT_CHARS = 300000;
+
+  var el = function (id) { return document.getElementById(id); };
+  var statusEl = el("status"), outputEl = el("output"), messageEl = el("message");
+  var runBtn = el("runBtn"), stopBtn = el("stopBtn"), inputText = el("inputText"), sendBtn = el("sendBtn");
+  var pinEl = el("pin"), mediaEl = el("media"), layoutEl = el("layout");
+
+  var files = {};            // name -> File
+  var mainName = "";
+  var runId = "", since = 0, source = null, running = false;
+  var pending = "", liveNode = null, outputChars = 0;
+
+  // ---------- per-viewer conveniences ----------
+  function load(key) { try { return localStorage.getItem(key) || ""; } catch (e) { return ""; } }
+  function save(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
+  pinEl.value = load("script_runner_pin");
+  pinEl.addEventListener("change", function () { save("script_runner_pin", pinEl.value); });
+
+  function pin() { return pinEl.value.trim(); }
+  function showMessage(text) { messageEl.textContent = text || ""; }
+
+  // ---------- file selection ----------
+  var drop = el("drop"), picker = el("picker");
+  drop.addEventListener("click", function () { picker.click(); });
+  drop.addEventListener("keydown", function (e) { if ("Enter" === e.key || " " === e.key) { e.preventDefault(); picker.click(); } });
+  picker.addEventListener("change", function () { addFiles(picker.files); picker.value = ""; });
+  ["dragenter", "dragover"].forEach(function (t) {
+    drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add("over"); });
+  });
+  ["dragleave", "drop"].forEach(function (t) {
+    drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove("over"); });
+  });
+  drop.addEventListener("drop", function (e) { addFiles(e.dataTransfer.files); });
+  // also accept drops anywhere on the page
+  document.addEventListener("dragover", function (e) { e.preventDefault(); });
+  document.addEventListener("drop", function (e) { e.preventDefault(); if (e.dataTransfer.files.length) { addFiles(e.dataTransfer.files); } });
+
+  function addFiles(list) {
+    for (var i = 0; i < list.length; ++i) {
+      files[list[i].name] = list[i];
+      if (/\.py$/i.test(list[i].name)) { mainName = list[i].name; }
+    }
+    renderFiles();
+  }
+
+  function renderFiles() {
+    var ul = el("files");
+    ul.textContent = "";
+    var names = Object.keys(files).sort();
+    if (mainName && !files[mainName]) { mainName = ""; }
+    names.forEach(function (name) {
+      var li = document.createElement("li");
+      if (/\.py$/i.test(name)) {
+        var radio = document.createElement("input");
+        radio.type = "radio"; radio.name = "main"; radio.checked = (name === mainName);
+        radio.setAttribute("aria-label", "Run " + name);
+        radio.addEventListener("change", function () { mainName = name; renderFiles(); });
+        li.appendChild(radio);
+      } else {
+        var spacer = document.createElement("span"); spacer.style.width = "13px"; li.appendChild(spacer);
+      }
+      var label = document.createElement("span");
+      label.textContent = name + (name === mainName ? "  (runs)" : "");
+      li.appendChild(label);
+      var remove = document.createElement("button");
+      remove.className = "remove"; remove.type = "button"; remove.textContent = "Remove";
+      remove.addEventListener("click", function () { delete files[name]; renderFiles(); });
+      li.appendChild(remove);
+      ul.appendChild(li);
+    });
+    updateButtons();
+  }
+
+  function updateButtons() {
+    runBtn.disabled = running || !mainName;
+    stopBtn.disabled = !running;
+    inputText.disabled = !running;
+    sendBtn.disabled = !running;
+  }
+
+  function readBase64(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result).split(",")[1] || ""); };
+      reader.onerror = function () { reject(reader.error); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ---------- server calls ----------
+  function post(path, body) {
+    return fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-PIN": pin() },
+      body: JSON.stringify(body || {})
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok) { throw new Error(data.error || ("Request failed (" + response.status + ")")); }
+        return data;
+      });
+    });
+  }
+
+  runBtn.addEventListener("click", function () {
+    showMessage("");
+    // a click lets the browser play speech and sound later in this run
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+    var names = Object.keys(files);
+    Promise.all(names.map(function (n) { return readBase64(files[n]); }))
+      .then(function (datas) {
+        var payload = names.map(function (n, i) { return { name: n, data: datas[i] }; });
+        return post("/api/run", { files: payload, main: mainName });
+      })
+      .then(function (data) {
+        resetOutput();
+        clearMedia();
+        runId = data.run; since = 0;
+        running = true; updateButtons();
+        connect();
+        inputText.focus();
+      })
+      .catch(function (err) { showMessage(err.message); });
+  });
+
+  stopBtn.addEventListener("click", stopRun);
+  document.addEventListener("keydown", function (e) { if ("Escape" === e.key && running) { stopRun(); } });
+  function stopRun() {
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+    post("/api/stop").catch(function (err) { showMessage(err.message); });
+  }
+
+  el("inputForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var text = inputText.value;
+    inputText.value = "";
+    post("/api/input", { text: text }).catch(function (err) { showMessage(err.message); });
+  });
+
+  el("clearBtn").addEventListener("click", function () { resetOutput(); clearMedia(); });
+
+  // ---------- event stream ----------
+  function connect() {
+    if (source) { source.close(); source = null; }
+    var url = "/api/events?pin=" + encodeURIComponent(pin()) +
+              "&run=" + encodeURIComponent(runId) + "&since=" + since;
+    source = new EventSource(url);
+    source.onmessage = function (msg) { handleEvent(JSON.parse(msg.data)); };
+    source.onerror = function () {
+      if (source) { source.close(); source = null; }
+      if (running) { setTimeout(connect, 1000); }     // reconnect, resuming where we left off
+    };
+  }
+
+  function handleEvent(ev) {
+    if ("hello" === ev.type) {
+      if (ev.run !== runId) { runId = ev.run; since = 0; resetOutput(); }
+      return;
+    }
+    if (ev.seq < since) { return; }                    // already seen (after a reconnect)
+    since = ev.seq + 1;
+    if ("out" === ev.type) {
+      addOutput(ev.text);
+    } else if ("echo" === ev.type) {
+      // keep an input() prompt and the typed answer on the same line
+      if (pending && pending.indexOf(TAG) < 0) { commit(pending); pending = ""; updateLive(); }
+      else { flushPending(); }
+      commit(ev.text, "echo");
+    } else if ("notice" === ev.type) {
+      flushPending(); commit(ev.text + "\n", "notice");
+    } else if ("status" === ev.type && "running" === ev.state) {
+      running = true; updateButtons();
+      setStatus("Running " + ev.file, true);
+    } else if ("status" === ev.type && "exited" === ev.state) {
+      flushPending();
+      running = false; updateButtons();
+      if (source) { source.close(); source = null; }
+      var text = ev.text ? ev.text :
+        ("stopped" === ev.reason ? "Stopped" : "Finished") +
+        (null === ev.code || undefined === ev.code ? "" : " (exit code " + ev.code + ")");
+      commit("\n" + text + "\n", "notice");
+      setStatus("Ready", false);
+    }
+  }
+
+  // ---------- output with say/play/show tags ----------
+  function addOutput(text) {
+    pending += text;
+    var lines = pending.split("\n");
+    pending = lines.pop();
+    lines.forEach(handleLine);
+    updateLive();
+  }
+
+  function handleLine(line) {
+    var at = line.indexOf(TAG);
+    if (at < 0) {
+      commit(line + "\n");
+      if (el("speakAll").checked && line.trim()) { speak(line); }
+      return;
+    }
+    if (0 < at) { commit(line.slice(0, at) + "\n"); }
+    var rest = line.slice(at + TAG.length);
+    var space = rest.indexOf(" ");
+    var kind = space < 0 ? rest : rest.slice(0, space);
+    var value = space < 0 ? "" : rest.slice(space + 1);
+    if ("say" === kind) {
+      commit("🔊 " + value + "\n", "notice");
+      if (el("speakSay").checked || el("speakAll").checked) { speak(value); }
+    } else if ("play" === kind) {
+      commit("♪ " + value + "\n", "notice");
+      var audio = new Audio(mediaUrl(value));
+      audio.play().catch(function () { commit("Could not play " + value + "\n", "notice"); });
+    } else if ("show" === kind) {
+      commit("🖼 " + value + "\n", "notice");
+      showImage(value);
+    } else {
+      commit(line + "\n");
+    }
+  }
+
+  // The unfinished last line (for example an input() prompt) is shown live,
+  // except the part that may turn out to be a tag.
+  function updateLive() {
+    var visible = pending;
+    var at = pending.indexOf("@");
+    if (0 <= at) {
+      var tail = pending.slice(at);
+      if (0 === TAG.indexOf(tail) || 0 === tail.indexOf(TAG)) { visible = pending.slice(0, at); }
+    }
+    if (!liveNode) { liveNode = document.createElement("span"); outputEl.appendChild(liveNode); }
+    liveNode.textContent = visible;
+    scrollDown();
+  }
+
+  function flushPending() {
+    if (pending) { var p = pending; pending = ""; handleLine(p); }
+    if (liveNode) { liveNode.textContent = ""; }
+  }
+
+  function commit(text, cls) {
+    var node = document.createElement("span");
+    if (cls) { node.className = cls; }
+    node.textContent = text;
+    if (liveNode && liveNode.parentNode === outputEl) { outputEl.insertBefore(node, liveNode); }
+    else { outputEl.appendChild(node); }
+    outputChars += text.length;
+    while (MAX_OUTPUT_CHARS < outputChars && outputEl.firstChild && outputEl.firstChild !== liveNode) {
+      outputChars -= outputEl.firstChild.textContent.length;
+      outputEl.removeChild(outputEl.firstChild);
+    }
+    scrollDown();
+  }
+
+  function scrollDown() { outputEl.scrollTop = outputEl.scrollHeight; }
+
+  function resetOutput() {
+    outputEl.textContent = ""; liveNode = null; pending = ""; outputChars = 0;
+  }
+
+  // ---------- speech, sound, images ----------
+  function speak(text) {
+    try { window.speechSynthesis.speak(new SpeechSynthesisUtterance(text)); } catch (e) {}
+  }
+
+  function mediaUrl(name) {
+    return "/api/media?pin=" + encodeURIComponent(pin()) + "&name=" + encodeURIComponent(name) + "&t=" + Date.now();
+  }
+
+  function showImage(name) {
+    var fig = document.createElement("figure");
+    var img = document.createElement("img");
+    img.alt = name; img.src = mediaUrl(name);
+    img.onerror = function () { cap.textContent = "Could not load " + name; };
+    var cap = document.createElement("figcaption"); cap.textContent = name;
+    fig.appendChild(img); fig.appendChild(cap);
+    mediaEl.insertBefore(fig, mediaEl.firstChild);
+    mediaEl.hidden = false; layoutEl.classList.add("has-media");
+  }
+
+  function clearMedia() {
+    mediaEl.textContent = ""; mediaEl.hidden = true; layoutEl.classList.remove("has-media");
+  }
+
+  // ---------- status ----------
+  function setStatus(text, isRunning) {
+    statusEl.textContent = text;
+    statusEl.classList.toggle("running", !!isRunning);
+  }
+
+  fetch("/api/status").then(function (r) { return r.json(); }).then(function (s) {
+    if (s.busy) {
+      setStatus("Busy: another script is running", true);
+      if (pin()) { running = true; updateButtons(); connect(); }
+    } else {
+      setStatus("Ready", false);
+    }
+  }).catch(function () { setStatus("Cannot reach the Pi", false); });
+
+  renderFiles();
+})();
+</script>
+</body>
+</html>

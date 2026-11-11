@@ -1,0 +1,5 @@
+# Keep Unix line endings in files that are copied to the Raspberry Pi,
+# even when the repository is cloned on Windows.
+* text=auto eol=lf
+*.png binary
+*.wav binary

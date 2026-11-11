@@ -1,0 +1,186 @@
+# Pi Script Runner build pipeline (GitHub Actions).
+#
+# Every push, and every press of "Run workflow" on the Actions tab:
+#   1. runs the Pi server's Python tests and the app's C# tests (the C# tests include real SSH sessions against an
+#      SSH server started on the runner, with a random password generated for that run only);
+#   2. on main (or "Run workflow"), builds the Windows program, the Mac app (Apple Silicon and Intel), and the
+#      Android app;
+#   3. on main, publishes them as a GitHub release named for the build date and time: the Windows and Mac job
+#      creates the release, and the Android job adds its file to it. (The files go straight to the release rather
+#      than through workflow artifacts, so the account's artifact storage quota never blocks a release.)
+# See docs/app.md, "Building and releasing".
+
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write          # to create the release
+
+env:
+  TZ: America/Chicago      # the build version is the build's date and time, US Central time
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  AVALONIA_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  python:
+    name: Pi server tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Check that the Pi code runs on Python 3.7
+        run: |
+          pip install vermin
+          vermin --target=3.7- --no-tips --violations runner/ examples/ app/src/ScriptRunner.Core/Remote/
+      - name: Install browser test dependencies
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+  app-tests:
+    name: App tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: app/global.json
+      - name: Start an SSH server to test SSH mode against
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q openssh-server
+          password="$(openssl rand -base64 24)"
+          echo "::add-mask::$password"
+          sudo useradd -m -s /bin/bash runnertest
+          echo "runnertest:$password" | sudo chpasswd
+          printf 'Port 2222\nListenAddress 127.0.0.1\nPasswordAuthentication yes\nKbdInteractiveAuthentication yes\nUsePAM yes\nSubsystem sftp /usr/lib/openssh/sftp-server\n' | sudo tee /etc/ssh/sshd_test_config
+          sudo mkdir -p /run/sshd
+          sudo /usr/sbin/sshd -f /etc/ssh/sshd_test_config
+          echo "SCRIPT_RUNNER_TEST_SSH_HOST=127.0.0.1" >> "$GITHUB_ENV"
+          echo "SCRIPT_RUNNER_TEST_SSH_PORT=2222" >> "$GITHUB_ENV"
+          echo "SCRIPT_RUNNER_TEST_SSH_USER=runnertest" >> "$GITHUB_ENV"
+          echo "SCRIPT_RUNNER_TEST_SSH_PASSWORD=$password" >> "$GITHUB_ENV"
+      - name: Build (warnings fail the build)
+        run: |
+          set -o pipefail
+          dotnet build app/tests/ScriptRunner.Tests 2>&1 | tee "$RUNNER_TEMP/build.log"
+          dotnet build app/src/ScriptRunner.Desktop 2>&1 | tee -a "$RUNNER_TEMP/build.log"
+          if grep -E "warning [A-Z]+[0-9]+" "$RUNNER_TEMP/build.log"; then echo "::error::The build has warnings."; exit 1; fi
+      - name: Check packages (deprecated or vulnerable fails; outdated is reported)
+        working-directory: app
+        run: |
+          projects="src/ScriptRunner.Core src/ScriptRunner.App src/ScriptRunner.Desktop tests/ScriptRunner.Tests"
+          failed=0
+          for project in $projects; do
+            for check in --deprecated "--vulnerable --include-transitive"; do
+              dotnet list "$project" package $check > "$RUNNER_TEMP/packages.log" 2>&1
+              if grep -E "^\s+> " "$RUNNER_TEMP/packages.log"; then
+                echo "::error::$project: dotnet list package $check found packages to replace."; failed=1
+              fi
+            done
+            dotnet list "$project" package --outdated > "$RUNNER_TEMP/packages.log" 2>&1
+            if grep -E "^\s+> " "$RUNNER_TEMP/packages.log"; then
+              echo "::notice::$project has newer package versions available (see this step's log)."
+            fi
+          done
+          exit $failed
+      - name: Run all tests
+        working-directory: app          # where global.json selects the Microsoft Testing Platform runner
+        run: dotnet test --project tests/ScriptRunner.Tests --no-build
+
+  desktop:
+    name: Windows and Mac
+    needs: [python, app-tests]
+    if: ${{ github.ref_name == 'main' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: app/global.json
+      - name: Get rcodesign (signs the Mac app ad hoc)
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/rcodesign.tar.gz" \
+            "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz"
+          tar -xzf "$RUNNER_TEMP/rcodesign.tar.gz" -C "$RUNNER_TEMP"
+          echo "RCODESIGN=$(find "$RUNNER_TEMP" -name rcodesign -type f | head -1)" >> "$GITHUB_ENV"
+      - name: Build the Windows program
+        run: dotnet publish app/src/ScriptRunner.Desktop -p:PublishProfile=Windows-x64
+      - name: Build the Mac app (Apple Silicon)
+        run: dotnet publish app/src/ScriptRunner.Desktop -p:PublishProfile=Mac-AppleSilicon-arm64 -p:RcodesignCommand="$RCODESIGN"
+      - name: Build the Mac app (Intel)
+        run: dotnet publish app/src/ScriptRunner.Desktop -p:PublishProfile=Mac-Intel-x64 -p:RcodesignCommand="$RCODESIGN"
+      - name: Collect the files
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          cp app/publish/win-x64/ScriptRunner.exe "$RUNNER_TEMP/out/ScriptRunner-Windows.exe"
+          cp app/publish/osx-arm64/ScriptRunner-mac.zip "$RUNNER_TEMP/out/ScriptRunner-Mac-AppleSilicon.zip"
+          cp app/publish/osx-x64/ScriptRunner-mac.zip "$RUNNER_TEMP/out/ScriptRunner-Mac-Intel.zip"
+      - name: Publish the release
+        id: release
+        if: ${{ github.ref_name == 'main' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          stamp=$(date +"%Y-%m-%d %H:%M")
+          tag="app-$(date +%Y%m%d-%H%M)"
+          notes="Script Runner app built $stamp (Central time) from commit ${GITHUB_SHA::7}. All tests passed. The Android app (ScriptRunner-Android.apk) is added a few minutes after the release appears; if it is missing, see the Android job in this run's log."
+          gh release create "$tag" "$RUNNER_TEMP"/out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Script Runner $stamp" --notes "$notes"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+
+  android:
+    name: Android
+    needs: [python, app-tests, desktop]
+    if: ${{ github.ref_name == 'main' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: app/global.json
+      - uses: actions/setup-java@v6
+        with:
+          distribution: microsoft
+          java-version: "21"
+      - name: Install the .NET Android tools
+        run: dotnet workload install android
+      - name: Install the Android SDK parts the app needs
+        run: dotnet build app/src/ScriptRunner.Android -t:InstallAndroidDependencies -p:AcceptAndroidSDKLicenses=True -p:AndroidSdkDirectory="$ANDROID_SDK_ROOT"
+      - name: Build (warnings fail the build)
+        run: |
+          set -o pipefail
+          dotnet build app/src/ScriptRunner.Android -p:AndroidSdkDirectory="$ANDROID_SDK_ROOT" 2>&1 | tee "$RUNNER_TEMP/android-build.log"
+          if grep -E "warning [A-Z]+[0-9]+" "$RUNNER_TEMP/android-build.log"; then echo "::error::The Android build has warnings."; exit 1; fi
+      - name: Unpack the signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SCRIPTRUNNER_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.SCRIPTRUNNER_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::The Android signing secrets SCRIPTRUNNER_KEYSTORE_BASE64 and SCRIPTRUNNER_KEYSTORE_PASSWORD are not set (docs/app.md, one-time setup). The Windows and Mac files are still released."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > app/scriptrunner-release.keystore
+      - name: Build the Android app
+        env:
+          SCRIPTRUNNER_KEYSTORE_PASSWORD: ${{ secrets.SCRIPTRUNNER_KEYSTORE_PASSWORD }}
+        run: dotnet publish app/src/ScriptRunner.Android -p:PublishProfile=Android-apk -p:AndroidSdkDirectory="$ANDROID_SDK_ROOT"
+      - name: Add the Android app to the release
+        if: ${{ github.ref_name == 'main' && needs.desktop.outputs.tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp "$(find app/publish/android -name '*-Signed.apk' | head -1)" "$RUNNER_TEMP/ScriptRunner-Android.apk"
+          gh release upload "${{ needs.desktop.outputs.tag }}" "$RUNNER_TEMP/ScriptRunner-Android.apk" --repo "$GITHUB_REPOSITORY"

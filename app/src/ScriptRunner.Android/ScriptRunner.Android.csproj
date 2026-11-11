@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Android app (APK). Builds on a computer with the .NET Android workload (dotnet workload install android).
+    GitHub Actions builds it on every push to main; see docs/app.md, Building.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>24</SupportedOSPlatformVersion>
+    <RootNamespace>ScriptRunner.Android</RootNamespace>
+    <AssemblyName>ScriptRunner</AssemblyName>
+    <ApplicationTitle>Script Runner</ApplicationTitle>
+    <ApplicationId>app.scriptrunner</ApplicationId>
+    <!-- Android's version code must be a whole number that grows with each build: YYDDDHHMM (year, day of the year,
+         hour, minute of the build). The version name is the build date and time, as in the desktop app. -->
+    <ApplicationVersion>$([System.DateTime]::Now.ToString('yy'))$([System.DateTime]::Now.DayOfYear.ToString('000'))$([System.DateTime]::Now.ToString('HHmm'))</ApplicationVersion>
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Android" Version="$(AvaloniaVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ScriptRunner.App\ScriptRunner.App.csproj" />
+  </ItemGroup>
+
+</Project>

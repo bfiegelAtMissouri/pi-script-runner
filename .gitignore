@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+Thumbs.db
+
+# .NET builds
+bin/
+obj/
+*.user
+.vs/
+publish/
+
+# Publish profiles are shared settings: keep them in git even if a global ignore file excludes *.pubxml.
+!**/Properties/PublishProfiles/
+!**/Properties/PublishProfiles/*.pubxml
+
+# The Android signing keystore and its password: keep a backup elsewhere, but never commit them.
+*.keystore
+*.jks
+android-signing-secrets.txt

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Connections to a Raspberry Pi (HTTP to the Pi's runner server, or SSH directly) and the output parser.
+       No user interface code, so the desktop and Android apps and the tests all share it. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>ScriptRunner.Core</RootNamespace>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SSH.NET" Version="$(SshNetVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SSH mode uploads these next to the user's script. runner_io.py is the same file the Pi server uses. -->
+    <EmbeddedResource Include="..\..\..\runner\runner_io.py" LogicalName="runner_io.py" />
+    <EmbeddedResource Include="Remote\_script_runner_shim.py" LogicalName="_script_runner_shim.py" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ScriptRunner.Tests" />
+  </ItemGroup>
+
+</Project>

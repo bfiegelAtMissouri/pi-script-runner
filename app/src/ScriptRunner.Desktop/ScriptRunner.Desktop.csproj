@@ -1,0 +1,136 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Windows, macOS, and Linux desktop app. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>ScriptRunner</AssemblyName>
+    <RootNamespace>ScriptRunner.Desktop</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\ScriptRunner.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <!-- Windows speech; the code that uses it runs only on Windows. -->
+    <PackageReference Include="System.Speech" Version="$(SystemSpeechVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ScriptRunner.App\ScriptRunner.App.csproj" />
+  </ItemGroup>
+
+  <!-- Leave debug symbol files (.pdb) out of the published app, including native ones from SkiaSharp and HarfBuzz. -->
+  <Target Name="DropSymbolFilesFromPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Mac: after publishing for osx-*, wrap the program in "Script Runner.app", ad hoc sign it with rcodesign when that
+    tool is installed (https://github.com/indygreg/apple-platform-rs, "apple-codesign" releases), and zip the app with
+    the file permissions macOS needs, as ScriptRunner-mac.zip in the publish folder. Set RcodesignCommand to
+    rcodesign's full path if it is not on the PATH.
+  -->
+  <Target Name="PackageMacApp" AfterTargets="Publish" Condition="$(RuntimeIdentifier.StartsWith('osx'))">
+    <PropertyGroup>
+      <MacStaging>$(MSBuildProjectDirectory)/$(IntermediateOutputPath)macapp/</MacStaging>
+      <MacApp>$(MacStaging)Script Runner.app/</MacApp>
+      <MacZip>$([System.IO.Path]::GetFullPath('$(PublishDir)ScriptRunner-mac.zip'))</MacZip>
+      <RcodesignCommand Condition="'$(RcodesignCommand)' == ''">rcodesign</RcodesignCommand>
+    </PropertyGroup>
+    <RemoveDir Directories="$(MacStaging)" />
+    <MakeMacAppBundle Program="$(PublishDir)ScriptRunner" Icon="$(MSBuildProjectDirectory)/Assets/ScriptRunner.icns"
+                      AppDirectory="$(MacApp)" Version="$(Version)" />
+    <Exec Command="&quot;$(RcodesignCommand)&quot; --version" ContinueOnError="true" IgnoreExitCode="true"
+          StandardOutputImportance="low" StandardErrorImportance="low" EchoOff="true">
+      <Output TaskParameter="ExitCode" PropertyName="RcodesignExitCode" />
+    </Exec>
+    <Exec Condition="'$(RcodesignExitCode)' == '0'" Command="&quot;$(RcodesignCommand)&quot; sign &quot;$(MacApp.TrimEnd('/'))&quot;" />
+    <Error Condition="'$(RcodesignExitCode)' != '0'"
+           Text="rcodesign was not found, so the Mac app could not be signed; macOS on Apple Silicon will not run an unsigned app. Install rcodesign or set RcodesignCommand (docs/app.md, Building)." />
+    <ZipWithUnixPermissions SourceDirectory="$(MacStaging)" ZipFile="$(MacZip)" ExecutablePaths="Script Runner.app/Contents/MacOS/ScriptRunner" />
+    <Delete Files="$(PublishDir)ScriptRunner" />
+    <Message Importance="high" Text="Mac app: $(MacZip)" />
+  </Target>
+
+  <UsingTask TaskName="MakeMacAppBundle" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Program ParameterType="System.String" Required="true" />
+      <Icon ParameterType="System.String" Required="true" />
+      <AppDirectory ParameterType="System.String" Required="true" />
+      <Version ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        string contents = Path.Combine(AppDirectory, "Contents");
+        Directory.CreateDirectory(Path.Combine(contents, "MacOS"));
+        Directory.CreateDirectory(Path.Combine(contents, "Resources"));
+        File.Copy(Program, Path.Combine(contents, "MacOS", "ScriptRunner"), true);
+        File.Copy(Icon, Path.Combine(contents, "Resources", "ScriptRunner.icns"), true);
+        File.WriteAllText(Path.Combine(contents, "Info.plist"),
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+            "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n" +
+            "<plist version=\"1.0\">\n<dict>\n" +
+            "  <key>CFBundleName</key><string>Script Runner</string>\n" +
+            "  <key>CFBundleDisplayName</key><string>Script Runner</string>\n" +
+            "  <key>CFBundleIdentifier</key><string>app.scriptrunner</string>\n" +
+            "  <key>CFBundleVersion</key><string>" + Version + "</string>\n" +
+            "  <key>CFBundleShortVersionString</key><string>" + Version + "</string>\n" +
+            "  <key>CFBundleExecutable</key><string>ScriptRunner</string>\n" +
+            "  <key>CFBundleIconFile</key><string>ScriptRunner.icns</string>\n" +
+            "  <key>CFBundlePackageType</key><string>APPL</string>\n" +
+            "  <key>LSMinimumSystemVersion</key><string>12.0</string>\n" +
+            "  <key>NSHighResolutionCapable</key><true/>\n" +
+            "  <key>NSLocalNetworkUsageDescription</key><string>Script Runner connects to Raspberry Pi computers on your network to run your scripts.</string>\n" +
+            "</dict>\n</plist>\n");
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <!-- A zip that keeps Unix permissions (rwxr-xr-x for the program), which zipping on Windows otherwise loses. -->
+  <UsingTask TaskName="ZipWithUnixPermissions" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <SourceDirectory ParameterType="System.String" Required="true" />
+      <ZipFile ParameterType="System.String" Required="true" />
+      <ExecutablePaths ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.IO.Compression" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        // ZipArchiveEntry.ExternalAttributes is not in .NET Standard 2.0 (which inline tasks compile against),
+        // so it is set through reflection.
+        var executables = new System.Collections.Generic.HashSet<string>(ExecutablePaths.Split(';'));
+        string root = Path.GetFullPath(SourceDirectory).TrimEnd('/', '\\') + Path.DirectorySeparatorChar;
+        var attributes = typeof(ZipArchiveEntry).GetProperty("ExternalAttributes");
+        if (attributes == null)
+        {
+            Log.LogError("This MSBuild cannot set Unix file permissions in a zip (ZipArchiveEntry.ExternalAttributes is missing).");
+            return false;
+        }
+        if (File.Exists(ZipFile)) File.Delete(ZipFile);
+        using (var zip = System.IO.Compression.ZipFile.Open(ZipFile, ZipArchiveMode.Create))
+        {
+            foreach (string dir in Directory.GetDirectories(root, "*", SearchOption.AllDirectories))
+            {
+                var entry = zip.CreateEntry(dir.Substring(root.Length).Replace('\\', '/') + "/");
+                attributes.SetValue(entry, unchecked((int)(0x41EDu << 16)));            // directory, rwxr-xr-x
+            }
+            foreach (string file in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
+            {
+                string name = file.Substring(root.Length).Replace('\\', '/');
+                var entry = zip.CreateEntry(name, CompressionLevel.Optimal);
+                using (var input = File.OpenRead(file))
+                using (var output = entry.Open()) input.CopyTo(output);
+                uint mode = executables.Contains(name) ? 0x81EDu : 0x81A4u;             // rwxr-xr-x or rw-r--r--
+                attributes.SetValue(entry, unchecked((int)(mode << 16)));
+            }
+        }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+</Project>

@@ -1,0 +1,32 @@
+<Project>
+  <PropertyGroup>
+    <!-- Build version from the date and time of the build (the build computer's local time), set automatically.
+         Version (in file properties): YYYY.MMDD.HHMM, for example 2026.1111.1047.
+         Shown in the window title as YYYY-MM-DD HH:MM, for example 2026-11-11 10:47. -->
+    <Version>$([System.DateTime]::Now.ToString('yyyy.MMdd.HHmm'))</Version>
+    <InformationalVersion>$([System.DateTime]::Now.ToString('yyyy-MM-dd HH:mm'))</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Authors>The pi-script-runner contributors</Authors>
+    <Copyright>Copyright (c) 2026 The pi-script-runner contributors. MIT License.</Copyright>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Keep the build clean: every compiler and NuGet warning is an error, including packages (direct or
+         transitive) that are deprecated or have a known vulnerability. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+
+    <!-- Release builds carry no .pdb debug files, so a published folder holds only what users run. -->
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+
+    <!-- Package versions, in one place. -->
+    <AvaloniaVersion>12.1.6</AvaloniaVersion>
+    <MvvmToolkitVersion>8.4.2</MvvmToolkitVersion>
+    <SshNetVersion>2026.0.0</SshNetVersion>
+    <SystemSpeechVersion>11.0.0</SystemSpeechVersion>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:installLocation="auto">
+  <uses-permission android:name="android.permission.INTERNET" />
+  <!-- HTTP mode talks to the runner server on the Pi over plain HTTP on the local network, which Android blocks
+       unless allowed here. SSH mode is encrypted either way. allowBackup is off so remembered passwords stay on
+       this device. -->
+  <application android:label="Script Runner" android:icon="@drawable/icon" android:allowBackup="false"
+               android:usesCleartextTraffic="true" />
+</manifest>
