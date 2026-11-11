@@ -21,19 +21,23 @@ public sealed class ConnectionTests
     private const string TestPin = "4321";
 
     private const string SessionScript = """
-        import time
+        import os, shutil, time
         from runner_io import say, show
         try:
             speed = input("Enter speed: ")
             print("speed is", speed)
             say("Starting the square")
             show("dot.png")
+            shutil.copy("dot.png", "TMP_COPY")
+            show("TMP_COPY")
             for side in range(100):
                 print("side", side)
                 time.sleep(0.5)
         except KeyboardInterrupt:
             print("User ended by pressing Ctrl+C")
         finally:
+            if os.path.exists("TMP_COPY"):
+                os.remove("TMP_COPY")
             print("FINALLY: cleanup ran")
         """;
 
@@ -258,7 +262,9 @@ public sealed class ConnectionTests
         CancellationToken cancel = TestContext.Current.CancellationToken;
         var log = new EventLog(connection);
         byte[] dot = File.ReadAllBytes(Path.Combine(RepoRoot(), "tests", "data", "dot.png"));
-        await connection.StartAsync(new[] { Script("square.py", SessionScript), new RunFile("dot.png", dot) }, "square.py", cancel);
+        string tmpCopy = $"/tmp/script_runner_test_{Guid.NewGuid():N}.png";      // play() and show() also accept /tmp
+        string script = SessionScript.Replace("TMP_COPY", tmpCopy, StringComparison.Ordinal);
+        await connection.StartAsync(new[] { Script("square.py", script), new RunFile("dot.png", dot) }, "square.py", cancel);
 
         await log.WaitForOutputAsync("Enter speed: ");
         await connection.SendInputAsync("30", cancel);
@@ -266,6 +272,8 @@ public sealed class ConnectionTests
         await log.WaitForOutputAsync("@@runner show dot.png");
         Assert.Contains("@@runner say Starting the square", log.Output, StringComparison.Ordinal);
         Assert.Equal(dot, await connection.GetFileAsync("dot.png", cancel));
+        await log.WaitForOutputAsync("@@runner show " + tmpCopy);
+        Assert.Equal(dot, await connection.GetFileAsync(tmpCopy, cancel));
         await log.WaitForOutputAsync("side 1");
 
         await connection.StopAsync(cancel);

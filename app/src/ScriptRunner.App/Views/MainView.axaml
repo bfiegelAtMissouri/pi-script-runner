@@ -17,6 +17,13 @@
     <Style Selector="WrapPanel > :is(Control)">
       <Setter Property="Margin" Value="0,0,10,8" />
     </Style>
+    <!-- The output keeps its dark colors when the pointer is over it or it has focus. -->
+    <Style Selector="TextBox#OutputBox:pointerover, TextBox#OutputBox:focus">
+      <Setter Property="Foreground" Value="#E6EDF3" />
+    </Style>
+    <Style Selector="TextBox#OutputBox:pointerover /template/ Border#PART_BorderElement, TextBox#OutputBox:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="#10141B" />
+    </Style>
   </UserControl.Styles>
 
   <DockPanel Margin="12">

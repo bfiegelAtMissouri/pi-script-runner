@@ -82,5 +82,7 @@ process group. Returns `409` if no script is running.
 
 ### `GET /api/media?pin=<PIN>&name=<file name>`
 
-Returns a file from the current run's folder, for `play()` and `show()`.
-Returns `404` for files that do not exist or are outside the run folder.
+Returns a file for `play()` and `show()`: `name` is relative to the current
+run's folder, or an absolute path in `/tmp`. Returns `404` for files that do
+not exist or are outside both. Links are followed before the check, so a link
+in `/tmp` to a file elsewhere is refused.

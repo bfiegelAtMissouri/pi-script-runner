@@ -167,6 +167,17 @@ class ServerTests(unittest.TestCase):
 
         self.assertEqual(200, self.get_status("/api/media?pin=%s&name=dot.png" % PIN))
         self.assertEqual(404, self.get_status("/api/media?pin=%s&name=../../etc/passwd" % PIN))
+        self.assertEqual(404, self.get_status("/api/media?pin=%s&name=/etc/passwd" % PIN))
+
+        # Files in /tmp can be served too, but not through a link in /tmp that points elsewhere.
+        with tempfile.TemporaryDirectory(dir="/tmp") as tmp:
+            photo = os.path.join(tmp, "photo.png")
+            with open(photo, "wb") as handle:
+                handle.write(dot)
+            link = os.path.join(tmp, "passwd.png")
+            os.symlink("/etc/passwd", link)
+            self.assertEqual(200, self.get_status("/api/media?pin=%s&name=%s" % (PIN, photo)))
+            self.assertEqual(404, self.get_status("/api/media?pin=%s&name=%s" % (PIN, link)))
 
         self.assertEqual(200, self.post("/api/stop", {})[0])
         thread.join(10)

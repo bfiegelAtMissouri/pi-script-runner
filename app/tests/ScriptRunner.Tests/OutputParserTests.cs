@@ -101,6 +101,22 @@ public sealed class OutputParserTests
     public void UnsafeFileNamesAreRejected(string name) =>
         Assert.Throws<RunnerException>(() => SshRunnerConnection.SafeFileName(name));
 
+    [Theory]
+    [InlineData("dot.png", "script_runner_ssh/run/dot.png")]
+    [InlineData("/tmp/photo.jpg", "/tmp/photo.jpg")]
+    [InlineData("/tmp/pictures/photo.jpg", "/tmp/pictures/photo.jpg")]
+    public void MediaPathsInTheRunFolderAndTmpAreAccepted(string name, string path) =>
+        Assert.Equal(path, SshRunnerConnection.RemoteMediaPath(name));
+
+    [Theory]
+    [InlineData("/tmp/")]
+    [InlineData("/tmp/../etc/passwd")]
+    [InlineData("/tmpfile.jpg")]
+    [InlineData("/home/pi/photo.jpg")]
+    [InlineData("../photo.jpg")]
+    public void MediaPathsElsewhereAreRefused(string name) =>
+        Assert.Throws<RunnerException>(() => SshRunnerConnection.RemoteMediaPath(name));
+
     [Fact]
     public void ShellQuoteHandlesSingleQuotes() =>
         Assert.Equal("'it'\\''s.py'", SshRunnerConnection.ShellQuote("it's.py"));

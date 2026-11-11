@@ -7,8 +7,9 @@ runner_io: send speech, sounds, and images from a script to the Pi Script Runner
     play("beep.wav")             # the laptop plays this sound file
     show("map.png")              # the laptop displays this image
 
-Files for play() and show() must be in the same folder as the script
-(drop them onto the page along with the .py file, or have the script create them).
+Files for play() and show() must be in the same folder as the script (drop them onto
+the page along with the .py file, or have the script create them) or in /tmp
+(for example show("/tmp/photo.jpg")).
 
 Each call prints one tagged line that the Runner page acts on and hides.
 Run outside the Runner page, the tagged lines simply appear as text.

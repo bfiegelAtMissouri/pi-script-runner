@@ -16,8 +16,13 @@ from runner_io import say, play, show
 | `play(filename)` | Plays a sound file (`.wav`, `.mp3`, `.ogg`) |
 | `show(filename)` | Displays an image (`.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.svg`; the app does not show `.svg`) |
 
-`filename` is relative to the script's folder on the Pi. Files outside that
-folder cannot be served.
+`filename` is either relative to the script's folder on the Pi (for example
+`photo.jpg`) or an absolute path in `/tmp` (for example `/tmp/photo.jpg`).
+Files anywhere else cannot be served.
+
+The script's folder is erased at the start of the next run. `/tmp` is shared by
+everyone who uses the Pi and is normally emptied when the Pi restarts, so files
+there can be overwritten by another group's script.
 
 Speech is queued: several `say()` calls in a row are spoken in order. `say()`
 returns immediately, so the script does not wait for speech to finish; add a

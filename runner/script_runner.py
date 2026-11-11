@@ -31,6 +31,8 @@ from urllib.parse import parse_qs, urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RUN_ROOT = os.path.join(os.path.expanduser("~"), "script_runner_runs")
+# play() and show() may also use files here, for scripts that save their photos and sounds in /tmp.
+SHARED_MEDIA_DIR = "/tmp"
 # Held while a script runs. The desktop and Android app's SSH mode takes the same lock (with flock),
 # so a script started over SSH and one started from this page never run at the same time.
 # SCRIPT_RUNNER_LOCK_FILE overrides the location (used by automated tests only).
@@ -391,13 +393,26 @@ class Handler(BaseHTTPRequestHandler):
         if run is None or not name:
             self._json(404, {"error": "Not found."})
             return
-        path = os.path.realpath(os.path.join(run.run_dir, name))
-        if not path.startswith(os.path.realpath(run.run_dir) + os.sep) or not os.path.isfile(path):
+        path = media_path(run.run_dir, name)
+        if path is None:
             self._json(404, {"error": "File not found: %s" % name})
             return
         content_type = MEDIA_TYPES.get(os.path.splitext(path)[1].lower(), "application/octet-stream")
         with open(path, "rb") as handle:
             self._send(200, handle.read(), content_type)
+
+
+def media_path(run_dir, name):
+    """
+    Purpose: find the file that play() or show() named
+    Inputs:  run_dir - the current run's folder; name - a path relative to it, or an absolute path in /tmp
+    Returns: the file's real path, or None if it does not exist or is outside the run folder and /tmp
+    """
+    path = os.path.realpath(os.path.join(run_dir, name))         # an absolute name replaces run_dir
+    for root in (run_dir, SHARED_MEDIA_DIR):
+        if path.startswith(os.path.realpath(root) + os.sep) and os.path.isfile(path):
+            return path
+    return None
 
 
 def main():

@@ -25,6 +25,7 @@ public sealed class SshRunnerConnection : IRunnerConnection
     private const string ShimName = "_script_runner_shim.py";
     private const string RunScriptName = "_script_runner_run.sh";
     private const string HelperName = "runner_io.py";
+    private const string SharedMediaDirectory = "/tmp/";      // play() and show() may also use files here
     private const string StartMarker = "@@runner-ssh-start\n";
     private const string ExitMarker = "@@runner-ssh-exit ";
 
@@ -134,37 +135,61 @@ public sealed class SshRunnerConnection : IRunnerConnection
         running = false;
         ShellStream? current = shell;
         shell = null;
-        current?.Dispose();
         Raise(new ExitedEvent(null, true, message));
+        CloseInBackground(current);
+    }
+
+    /// <summary>
+    /// Closes a terminal session without waiting for it. SSH.NET can deadlock when the app closes a session at the
+    /// moment the Pi closes it too (for example, just as a stopped script ends), so the app never waits on this.
+    /// </summary>
+    private static void CloseInBackground(IDisposable? resource)
+    {
+        if (resource is not null)
+        {
+            _ = Task.Run(resource.Dispose);
+        }
     }
 
     public Task<byte[]> GetFileAsync(string name, CancellationToken cancellationToken = default)
     {
         SftpClient client = sftp ?? throw new RunnerException("Not connected to the Pi.");
-        string safe = SafeFileName(name);
+        string path = RemoteMediaPath(name);
         return Task.Run(() =>
         {
             try
             {
                 using var buffer = new MemoryStream();
-                client.DownloadFile(RemoteDirectory + "/" + safe, buffer);
+                client.DownloadFile(path, buffer);
                 return buffer.ToArray();
             }
             catch (SshException error)
             {
-                throw new RunnerException($"Could not get {safe} from the Pi: {error.Message}", error);
+                throw new RunnerException($"Could not get {name} from the Pi: {error.Message}", error);
             }
         }, cancellationToken);
     }
 
-    public ValueTask DisposeAsync()
+    /// <summary>Longest the app waits for the connection to close before leaving it to close in the background.</summary>
+    private static readonly TimeSpan CloseTimeout = TimeSpan.FromSeconds(3);
+
+    public async ValueTask DisposeAsync()
     {
         runTimer?.Cancel();
-        shell?.Dispose();               // closing the terminal sends SIGHUP; the shim turns it into Ctrl+C
-        sftp?.Dispose();
-        ssh?.Dispose();
+        ShellStream? currentShell = shell;
+        SftpClient? currentSftp = sftp;
+        SshClient? currentSsh = ssh;
+        shell = null;
+        // Closing the terminal sends SIGHUP, which the shim turns into Ctrl+C. Closing runs on a worker thread and
+        // is not waited for past the timeout, so a stuck connection can never freeze the app.
+        Task close = Task.Run(() =>
+        {
+            currentShell?.Dispose();
+            currentSftp?.Dispose();
+            currentSsh?.Dispose();
+        });
+        await Task.WhenAny(close, Task.Delay(CloseTimeout)).ConfigureAwait(false);
         connectLock.Dispose();
-        return ValueTask.CompletedTask;
     }
 
     // ---- connection ---------------------------------------------------------------------------------------
@@ -285,9 +310,9 @@ public sealed class SshRunnerConnection : IRunnerConnection
         }
         runTimer?.Cancel();
         running = false;
-        ShellStream? current = shell;
+        // The terminal session is not closed here: the Pi closes it when the run script ends (just after the exit
+        // marker, or already, if the stream ended). Closing it from this side at the same moment can deadlock SSH.NET.
         shell = null;
-        current?.Dispose();
         if (Protocol.LockBusyExitCode == exitCode)
         {
             Raise(new ExitedEvent(null, false,
@@ -426,6 +451,20 @@ public sealed class SshRunnerConnection : IRunnerConnection
             throw new RunnerException($"\"{name}\" is not a usable file name.");
         }
         return name;
+    }
+
+    /// <summary>
+    /// The SFTP path for a file named by play() or show(): an absolute path in /tmp as given, or a plain file name in
+    /// the run folder. Throws for anything else.
+    /// </summary>
+    internal static string RemoteMediaPath(string name)
+    {
+        if (name.StartsWith(SharedMediaDirectory, StringComparison.Ordinal) && SharedMediaDirectory.Length < name.Length
+            && !name.Split('/').Contains(".."))
+        {
+            return name;
+        }
+        return RemoteDirectory + "/" + SafeFileName(name);
     }
 
     /// <summary>Quotes a value for the remote shell (POSIX single quotes).</summary>
