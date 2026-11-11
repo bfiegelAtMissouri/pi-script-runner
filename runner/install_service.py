@@ -3,7 +3,7 @@
 Install Pi Script Runner as a service that starts when the Pi boots.
 
 Usage (on the Pi, from the runner folder):
-    sudo python3 install_service.py <PIN> [--port 8000] [--max-seconds 300]
+    sudo python3 install_service.py <PIN> [--port 8000] [--max-seconds 300] [--python PATH]
     python3 install_service.py <PIN> --print      (show the service file only)
 
 Written in Python rather than shell so it still works if the files were
@@ -39,6 +39,9 @@ def main():
     parser.add_argument("pin", help="PIN students enter on the page")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--max-seconds", type=int, default=300)
+    parser.add_argument("--python", default="/usr/bin/python3",
+                        help="Python that runs the server and the scripts, for example a virtual environment's "
+                             "bin/python3 (default /usr/bin/python3)")
     parser.add_argument("--print", action="store_true", help="only print the service file")
     args = parser.parse_args()
 
@@ -47,7 +50,9 @@ def main():
 
     folder = os.path.dirname(os.path.abspath(__file__))
     user = os.environ.get("SUDO_USER") or pwd.getpwuid(os.getuid()).pw_name
-    service = TEMPLATE.format(user=user, folder=folder, python="/usr/bin/python3",
+    if not os.path.isfile(args.python):
+        sys.exit("No Python at %s." % args.python)
+    service = TEMPLATE.format(user=user, folder=folder, python=args.python,
                               pin=args.pin, port=args.port, max_seconds=args.max_seconds)
     if args.print:
         print(service)

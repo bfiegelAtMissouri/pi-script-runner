@@ -40,7 +40,7 @@ Then open `http://<IP>:8000` in a browser.
 ### Installer options
 
 ```text
-sudo python3 install_service.py <PIN> [--port 8000] [--max-seconds 300]
+sudo python3 install_service.py <PIN> [--port 8000] [--max-seconds 300] [--python PATH]
 python3 install_service.py <PIN> --print     # show the service file without installing
 ```
 
@@ -49,6 +49,7 @@ python3 install_service.py <PIN> --print     # show the service file without ins
 | `<PIN>` | (required) | PIN users enter on the page |
 | `--port` | 8000 | TCP port the page is served on |
 | `--max-seconds` | 300 | Each run is stopped automatically after this many seconds |
+| `--python` | `/usr/bin/python3` | Python that runs the server and the scripts; use a virtual environment's `bin/python3` when the robot libraries are installed in one |
 
 The service runs as the user who ran `sudo` (normally `pi`), so scripts can use
 Python packages installed for that user, such as packages in `~/.local`.
