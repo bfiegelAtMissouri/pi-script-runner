@@ -41,13 +41,18 @@ def square_outline(x, y):
     return LINE_COLOR if near and not inner else BACKGROUND_COLOR
 
 
-say("Hello from the Raspberry Pi")
-time.sleep(2)
+if '__main__' == __name__:
+    try:
+        say("Hello from the Raspberry Pi")
+        time.sleep(2)
 
-play("beep.wav")
-time.sleep(1)
+        play("beep.wav")
+        time.sleep(1)
 
-write_png("square.png", SIDE_PIXELS, SIDE_PIXELS, square_outline)
-show("square.png")
-say("Here is the path I will drive")
-print("Done.")
+        write_png("square.png", SIDE_PIXELS, SIDE_PIXELS, square_outline)
+        show("square.png")
+        say("Here is the path I will drive")
+    except KeyboardInterrupt:
+        print("Stopped by the Stop button (Ctrl+C)")
+    finally:
+        print("Done.")                    # runs whether the script finished or was stopped

@@ -15,8 +15,23 @@ from runner_io import say                   # noqa: E402
 
 DEGREES_PER_SIDE = 90
 SIDES = 4
+DRIVE_UPDATE_SECONDS = 0.1     # how often the drive command is repeated
+DRIVE_FORWARD = 0              # drive flags: 0 means forward
 
 rvr = SpheroRvrObserver()
+
+
+def drive_for_seconds(speed, heading, seconds):
+    """
+    Purpose: drive straight at a heading for a set time, then stop
+    Inputs:  speed (0-255), heading (degrees), seconds
+    Returns: nothing
+    """
+    end_time = time.monotonic() + seconds
+    while time.monotonic() < end_time:
+        rvr.drive_with_heading(speed, heading % 360, DRIVE_FORWARD)
+        time.sleep(DRIVE_UPDATE_SECONDS)
+    rvr.drive_with_heading(0, heading % 360, DRIVE_FORWARD)
 
 
 def drive_square(speed, heading, seconds):
@@ -27,7 +42,7 @@ def drive_square(speed, heading, seconds):
     """
     for side in range(SIDES):
         say("Side %d" % (side + 1))
-        rvr.drive_control.drive_forward_seconds(speed, heading + side * DEGREES_PER_SIDE, seconds)
+        drive_for_seconds(speed, heading + side * DEGREES_PER_SIDE, seconds)
 
 
 if '__main__' == __name__:

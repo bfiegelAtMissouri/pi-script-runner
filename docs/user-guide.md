@@ -69,10 +69,21 @@ See [runner-io.md](runner-io.md) for details.
 
 ## Examples
 
-The [examples](../examples) folder has scripts to try:
+The [examples](../examples) folder has scripts to try. Each one works with the app and the browser page, and each
+cleans up when you press Stop (motors off, camera closed, sensors stopped).
 
-| File | Shows |
-| :--- | :--- |
-| `hello_input.py` | Keyboard input, Stop, and `finally:` |
-| `speak_play_show.py` | `say()`, `play()`, and `show()` (add `beep.wav` with it) |
-| `rvr_square.py` | Driving a Sphero RVR with spoken updates and a safe stop |
+| File | Shows | Needs |
+| :--- | :--- | :--- |
+| `hello_input.py` | Keyboard input, Stop, and `finally:` | Nothing |
+| `speak_play_show.py` | `say()`, `play()`, and `show()` (add `beep.wav` with it) | Nothing |
+| `rvr/rvr_square.py` | Driving a square with spoken updates and a safe stop | Sphero RVR |
+| `rvr/rvr_square_photos.py` | Driving a square and showing a photo taken at each corner | Sphero RVR, Pi camera |
+| `rvr/color_detection.py` | Reading the color under the robot and saying the strongest of red, green, and blue | Sphero RVR |
+| `rvr/ambient_light.py` | Reporting the light level until Stop, saying "Bright" or "Dark" when it changes | Sphero RVR |
+| `sensors/distance_sensor.py` | Measuring distance until Stop, warning out loud when something is close | SparkFun Qwiic VL53L1X |
+| `sensors/oled_display.py` | Showing two lines of text on the display, cleared when you press Stop | SparkFun Qwiic OLED (128 x 32) |
+| `sensors/camera_photo.py` | Taking a photo and showing it | Pi camera |
+| `sensors/camera_dominant_color.py` | Showing a photo and saying whether red, green, or blue is strongest in it | Pi camera, numpy |
+
+The robot examples time their drives with their own loop rather than the SDK's `drive_forward_seconds`, whose
+timer can fail to stop when a drive starts within a few seconds of the end of a minute.
