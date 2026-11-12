@@ -58,12 +58,11 @@ runner/                  Everything that is copied to the Pi
   script_runner.py         HTTP server that runs scripts
   index.html               The browser page
   runner_io.py             Helper module scripts import
-  robot_api.py             Robot class for student scripts (also provided to every script)
   install_service.py       Registers the server as a systemd service
 app/                     The Windows, macOS, and Android app (C#, .NET 10, Avalonia)
 docs/                    Documentation
 examples/                Example scripts (rvr/: Sphero RVR; sensors/: camera and Qwiic; showcase/: all together;
-                         robot_api/: scripts using the Robot class)
+                         robot_api/: a simple Robot class for student scripts)
 tests/                   Automated tests for the Pi server
 ```
 

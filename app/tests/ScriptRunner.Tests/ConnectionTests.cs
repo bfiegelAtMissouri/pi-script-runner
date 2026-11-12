@@ -99,47 +99,6 @@ public sealed class ConnectionTests
     }
 
     [Fact]
-    public async Task HttpProvidesRobotApi()
-    {
-        string? python = FindPython();
-        Assert.SkipWhen(python is null, "python3 is not installed");
-        using var server = PiServer.Start(python!, TestPin);
-        var settings = new ConnectionSettings(ConnectionMode.Http, "127.0.0.1", server.Port, "", TestPin);
-        await using var connection = new HttpRunnerConnection(settings);
-        await CheckRobotApiAsync(connection);
-    }
-
-    [Fact]
-    public async Task SshProvidesRobotApi()
-    {
-        ConnectionSettings? settings = SshSettings();
-        Assert.SkipWhen(settings is null, "SCRIPT_RUNNER_TEST_SSH_* environment variables are not set");
-        await using var connection = new SshRunnerConnection(settings!, new MemoryHostKeys());
-        await CheckRobotApiAsync(connection);
-    }
-
-    /// <summary>robot_api.py is importable without adding it, and a copy added with the script is used instead.</summary>
-    private static async Task CheckRobotApiAsync(IRunnerConnection connection)
-    {
-        CancellationToken cancel = TestContext.Current.CancellationToken;
-        const string where = "import importlib.util, os\n" +
-                             "spec = importlib.util.find_spec('robot_api')\n" +
-                             "print('ROBOT_API', 'local' if os.path.dirname(spec.origin) == os.getcwd() else 'provided', " +
-                             "'own' if 'OWN COPY' in open(spec.origin).read() else 'standard')\n";
-
-        var log = new EventLog(connection);
-        await connection.StartAsync(new[] { Script("where.py", where) }, "where.py", cancel);
-        await log.WaitForExitAsync(TimeSpan.FromSeconds(15));
-        Assert.Contains("ROBOT_API", log.Output, StringComparison.Ordinal);
-        Assert.Contains("standard", log.Output, StringComparison.Ordinal);
-
-        log = new EventLog(connection);
-        await connection.StartAsync(new[] { Script("where.py", where), Script("robot_api.py", "# OWN COPY\n") }, "where.py", cancel);
-        await log.WaitForExitAsync(TimeSpan.FromSeconds(15));
-        Assert.Contains("ROBOT_API local own", log.Output, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task HttpTimeLimitFromTheAppStopsTheScript()
     {
         string? python = FindPython();

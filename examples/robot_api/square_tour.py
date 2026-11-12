@@ -5,6 +5,8 @@ takes a photo (shown in the app), and says what it found.
 
 Each side drives for 3 seconds, longer than the RVR's 2-second limit for a
 single drive command, so it also shows that drive() keeps the robot moving.
+
+Add robot_api.py together with this file before pressing Run.
 """
 from robot_api import Robot
 from runner_io import say, show

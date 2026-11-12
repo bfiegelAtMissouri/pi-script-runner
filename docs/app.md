@@ -63,8 +63,7 @@ previous session is stuck.
 ### Speech, sound, and images
 
 Scripts use the same `runner_io` functions as with the browser page ([runner-io.md](runner-io.md)). In SSH mode the
-app copies `runner_io.py` and `robot_api.py` next to the script on every run, so nothing needs to be installed on
-the Pi.
+app copies `runner_io.py` next to the script on every run, so nothing needs to be installed on the Pi.
 
 | Function | App behavior |
 | :--- | :--- |
@@ -120,7 +119,7 @@ To stop the warning:
 For people maintaining the Pis:
 
 - Files are copied with SFTP to `~/script_runner_ssh/run` (replaced on every run), with two helper files:
-  `runner_io.py`, `robot_api.py` (unless the user added their own), and `_script_runner_shim.py`.
+  `runner_io.py` and `_script_runner_shim.py`.
 - The script runs as `python3 -u` in a terminal session (so `input()` works) under `flock` on
   `/tmp/pi-script-runner.lock`. The runner server takes the same lock, so a script started from the app and
   one started from the browser page never run at the same time.

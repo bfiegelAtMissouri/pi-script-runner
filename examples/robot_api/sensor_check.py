@@ -1,6 +1,8 @@
 """
 Sensor check with the Robot API: reads the distance and ambient light,
 prints them, and shows the distance on the OLED.
+
+Add robot_api.py together with this file before pressing Run.
 """
 import time
 
