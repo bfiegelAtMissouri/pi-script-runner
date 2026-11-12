@@ -50,7 +50,7 @@
     <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,8,0,0">
       <StackPanel Spacing="6">
         <TextBlock Text="Settings" FontWeight="SemiBold" FontSize="16" />
-        <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="10">
+        <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="10">
           <TextBlock Grid.Row="0" Grid.Column="0" Text="Time limit per run (s)" VerticalAlignment="Center" />
           <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding TimeLimitSeconds}" Width="110"
                    AutomationProperties.Name="Time limit per run in seconds" />
@@ -80,6 +80,24 @@
                    AutomationProperties.Name="Pi command time limit in seconds" />
           <TextBlock Grid.Row="4" Grid.Column="2" Text="Longest a command in the Pi command box may run (SSH mode)"
                      VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
+
+          <TextBlock Grid.Row="5" Grid.Column="0" Text="Laptop Python" VerticalAlignment="Center" />
+          <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding LaptopPythonText}" Width="110" PlaceholderText="automatic"
+                   AutomationProperties.Name="Laptop Python" />
+          <TextBlock Grid.Row="5" Grid.Column="2" VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap"
+                     Text="Python that runs Laptop files, for example one with Ultralytics installed; blank finds one" />
+
+          <TextBlock Grid.Row="6" Grid.Column="0" Text="Laptop load time limit (s)" VerticalAlignment="Center" />
+          <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding LaptopLoadSecondsText}" Width="110"
+                   AutomationProperties.Name="Laptop load time limit in seconds" />
+          <TextBlock Grid.Row="6" Grid.Column="2" Text="Longest the Laptop files may take to load when a run starts"
+                     VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
+
+          <TextBlock Grid.Row="7" Grid.Column="0" Text="Laptop call time limit (s)" VerticalAlignment="Center" />
+          <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding LaptopCallSecondsText}" Width="110"
+                   AutomationProperties.Name="Laptop call time limit in seconds" />
+          <TextBlock Grid.Row="7" Grid.Column="2" Text="Longest one remote_execute() call may take on the laptop"
+                     VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
         </Grid>
         <TextBlock Text="{Binding SettingsError}" Foreground="#C62828" TextWrapping="Wrap"
                    IsVisible="{Binding SettingsError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
@@ -107,6 +125,8 @@
             <DataTemplate x:DataType="vm:FileEntry">
               <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                <CheckBox IsChecked="{Binding IsLaptop}" Content="Laptop"
+                          ToolTip.Tip="Keep this file on this computer: Laptop .py files run here, and the robot's script calls their functions with remote_execute()" />
                 <Button Content="Remove" Padding="6,2"
                         Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).RemoveFileCommand}"
                         CommandParameter="{Binding}" />

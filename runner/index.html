@@ -336,6 +336,16 @@
     } else if ("show" === kind) {
       commit((isImageName(value) ? "🖼 " : "📄 ") + value + "\n", "notice");
       showFile(value);
+    } else if ("call" === kind) {
+      // remote_execute(): laptop functions need the app, which runs Python; answer at once so the script does not wait.
+      var call = {};
+      try { call = JSON.parse(value); } catch (e) {}
+      commit("💻 " + (call.function || "") + "\n", "notice");
+      var reply = { id: call.id, ok: false,
+                    error: "remote_execute() needs the Script Runner app; the browser page cannot run laptop functions." };
+      post("/api/input", { text: TAG + "reply " + JSON.stringify(reply), echo: false }).catch(function () {});
+    } else if ("reply" === kind || "reply-file" === kind) {
+      // an answer sent to the script: not shown
     } else {
       commit(line + "\n");
     }

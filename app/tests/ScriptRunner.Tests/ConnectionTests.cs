@@ -18,7 +18,7 @@ namespace ScriptRunner.Tests;
 /// </summary>
 public sealed class ConnectionTests
 {
-    private const string TestPin = "4321";
+    internal const string TestPin = "4321";
 
     private const string SessionScript = """
         import os, shutil, time
@@ -339,7 +339,7 @@ public sealed class ConnectionTests
         return new ConnectionSettings(ConnectionMode.Ssh, host, port, user, password);
     }
 
-    private static string? FindPython()
+    internal static string? FindPython()
     {
         foreach (string dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
         {
@@ -413,7 +413,7 @@ public sealed class ConnectionTests
     }
 
     /// <summary>runner/script_runner.py on a free port, with a temporary home folder.</summary>
-    private sealed class PiServer : IDisposable
+    internal sealed class PiServer : IDisposable
     {
         private readonly Process process;
         private readonly string home;

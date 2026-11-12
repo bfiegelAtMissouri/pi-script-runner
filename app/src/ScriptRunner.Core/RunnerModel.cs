@@ -68,6 +68,12 @@ public interface IRunnerConnection : IAsyncDisposable
     /// <summary>Sends one line to the script's input() (a newline is added).</summary>
     Task SendInputAsync(string line, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Sends a remote_execute() reply (one line of JSON) to the script, without showing it as typed input. A reply
+    /// too long for one terminal line is sent as a file next to the script.
+    /// </summary>
+    Task SendReplyAsync(string replyJson, CancellationToken cancellationToken = default);
+
     /// <summary>Delivers Ctrl+C to the script, then terminates it if it does not stop.</summary>
     Task StopAsync(CancellationToken cancellationToken = default);
 
@@ -104,7 +110,7 @@ public sealed class RunnerException : Exception
 /// <summary>Values shared with the Pi side (runner/script_runner.py and runner/runner_io.py).</summary>
 public static class Protocol
 {
-    /// <summary>Lines starting with this are runner_io messages (say, play, show).</summary>
+    /// <summary>Lines starting with this are runner_io messages (say, play, show, call, reply).</summary>
     public const string Tag = "@@runner ";
 
     /// <summary>Held while any script runs, by the Pi server and by SSH mode, so only one runs at a time.</summary>

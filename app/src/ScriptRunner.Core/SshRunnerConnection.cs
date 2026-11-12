@@ -111,6 +111,36 @@ public sealed class SshRunnerConnection : IRunnerConnection
         return Task.CompletedTask;
     }
 
+    /// <summary>Longest reply sent as typed input; a terminal accepts at most 4095 characters per line.</summary>
+    private const int LongestReplyLine = 1000;
+    private int replyFiles;
+
+    public Task SendReplyAsync(string replyJson, CancellationToken cancellationToken = default)
+    {
+        ShellStream? current = shell;
+        if (!running || current is null)
+        {
+            throw new RunnerException("No script is running.");
+        }
+        string line = Protocol.Tag + "reply " + replyJson;
+        if (LongestReplyLine < line.Length)
+        {
+            string name = $"_runner_reply_{Interlocked.Increment(ref replyFiles)}.json";
+            try
+            {
+                Upload(name, Encoding.UTF8.GetBytes(replyJson));
+            }
+            catch (SshException error)
+            {
+                throw new RunnerException("Could not send the laptop's answer to the Pi: " + error.Message, error);
+            }
+            line = Protocol.Tag + "reply-file " + name;
+        }
+        current.Write(line + "\n");
+        current.Flush();
+        return Task.CompletedTask;
+    }
+
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         if (!running)
@@ -291,10 +321,11 @@ public sealed class SshRunnerConnection : IRunnerConnection
             return int.TryParse(text[(at + ExitMarker.Length)..end].Trim(), out int code) ? code : -1;
         }
 
-        // Hold back a trailing part that may be the start of the marker ("\n@@runner-ssh-exit ").
+        // Hold back a trailing part that may be the start of the marker ("\n@@runner-ssh-exit "). A lone newline is
+        // not held: a runner_io line (such as remote_execute's call) must arrive whole, since the script then waits.
         int keep = 0;
         string marker = "\n" + ExitMarker;
-        for (int length = Math.Min(marker.Length, text.Length); 0 < length; --length)
+        for (int length = Math.Min(marker.Length, text.Length); 1 < length; --length)
         {
             if (text.EndsWith(marker[..length], StringComparison.Ordinal))
             {

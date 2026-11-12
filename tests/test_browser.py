@@ -128,6 +128,27 @@ class BrowserTests(unittest.TestCase):
             self.assertEqual([], errors)
             browser.close()
 
+    def test_remote_execute_needs_the_app(self):
+        """In the browser page, remote_execute() fails at once with a clear message instead of waiting forever."""
+        script = os.path.join(self.work, "remote.py")
+        with open(script, "w") as handle:
+            handle.write("from runner_io import remote_execute, RemoteExecutionError\n"
+                         "try:\n    remote_execute('detect', 1)\n"
+                         "except RemoteExecutionError as error:\n    print('caught:', error)\n")
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            page = browser.new_page()
+            page.goto(self.base + "/")
+            page.fill("#pin", PIN)
+            page.set_input_files("#picker", [script])
+            page.click("#runBtn")
+            page.wait_for_function(
+                "document.getElementById('output').textContent.includes('caught:')", timeout=5000)
+            output = page.inner_text("#output")
+            self.assertIn("needs the Script Runner app", output)
+            self.assertNotIn("@@runner", output)
+            browser.close()
+
 
 if "__main__" == __name__:
     unittest.main()

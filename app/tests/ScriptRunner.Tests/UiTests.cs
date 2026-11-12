@@ -160,7 +160,7 @@ public sealed class UiTests
         Directory.Delete(settingsFolder, true);
     }
 
-    private static async Task WaitUntil(Dispatcher ui, MainViewModel model, Func<bool> condition)
+    internal static async Task WaitUntil(Dispatcher ui, MainViewModel model, Func<bool> condition)
     {
         var watch = Stopwatch.StartNew();
         while (true)
@@ -176,7 +176,7 @@ public sealed class UiTests
         }
     }
 
-    private sealed class RecordingSpeech : ISpeechService
+    internal sealed class RecordingSpeech : ISpeechService
     {
         public List<string> Spoken { get; } = new();
 
@@ -185,7 +185,7 @@ public sealed class UiTests
         public void StopSpeaking() { }
     }
 
-    private sealed class SilentAudio : IAudioService
+    internal sealed class SilentAudio : IAudioService
     {
         public Task PlayAsync(string fileName, byte[] data) => Task.CompletedTask;
     }

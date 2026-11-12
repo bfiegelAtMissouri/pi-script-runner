@@ -210,12 +210,14 @@ class Runner:
                 return
             time.sleep(0.5)
 
-    def send_input(self, text):
+    def send_input(self, text, echo=True):
         run = self.current
         if run is None or run.finished or run.proc is None:
             return "No script is running."
-        # Log the echo before the script can respond, so the typed text appears first.
-        run.add_event({"type": "echo", "text": text + "\n"})
+        # Log the echo before the script can respond, so the typed text appears first. Replies to
+        # remote_execute() are not typed text, so they are not echoed.
+        if echo:
+            run.add_event({"type": "echo", "text": text + "\n"})
         try:
             run.proc.stdin.write((text + "\n").encode("utf-8"))
             run.proc.stdin.flush()
@@ -323,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
         if "/api/run" == route:
             self._start_run(body)
         elif "/api/input" == route:
-            error = self.runner.send_input(str(body.get("text", "")))
+            error = self.runner.send_input(str(body.get("text", "")), bool(body.get("echo", True)))
             self._json(409 if error else 200, {"error": error} if error else {"ok": True})
         elif "/api/stop" == route:
             error = self.runner.stop()

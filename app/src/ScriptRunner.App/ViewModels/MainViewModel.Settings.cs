@@ -11,10 +11,14 @@ public sealed partial class MainViewModel
     public const int DefaultLargestFileMegabytes = 20;
     public const int DefaultOutputCharactersKept = 200_000;
     public static readonly int DefaultPiCommandSeconds = (int)PiCommand.DefaultTimeout.TotalSeconds;
+    public const int DefaultLaptopLoadSeconds = 120;
+    public const int DefaultLaptopCallSeconds = 60;
 
     private int shownFilesKept = DefaultShownFilesKept;
     private int outputCharactersKept = DefaultOutputCharactersKept;
     private int piCommandSeconds = DefaultPiCommandSeconds;
+    private int laptopLoadSeconds = DefaultLaptopLoadSeconds;
+    private int laptopCallSeconds = DefaultLaptopCallSeconds;
 
     /// <summary>Largest file show() or play() downloads.</summary>
     private long LargestFileBytes { get; set; } = DefaultLargestFileMegabytes * 1024L * 1024L;
@@ -42,6 +46,18 @@ public sealed partial class MainViewModel
     [ObservableProperty]
     public partial string PiCommandSecondsText { get; set; } = "";
 
+    /// <summary>The Python that runs Laptop files: a path or command; blank finds one automatically.</summary>
+    [ObservableProperty]
+    public partial string LaptopPythonText { get; set; } = "";
+
+    /// <summary>Longest the Laptop files may take to load at the start of a run, in seconds.</summary>
+    [ObservableProperty]
+    public partial string LaptopLoadSecondsText { get; set; } = "";
+
+    /// <summary>Longest one laptop function call may take, in seconds.</summary>
+    [ObservableProperty]
+    public partial string LaptopCallSecondsText { get; set; } = "";
+
     [RelayCommand]
     private void ToggleSettings() => IsSettingsOpen = !IsSettingsOpen;
 
@@ -53,6 +69,9 @@ public sealed partial class MainViewModel
         LargestFileMegabytesText = DefaultLargestFileMegabytes.ToString();
         OutputCharactersKeptText = DefaultOutputCharactersKept.ToString();
         PiCommandSecondsText = DefaultPiCommandSeconds.ToString();
+        LaptopPythonText = "";
+        LaptopLoadSecondsText = DefaultLaptopLoadSeconds.ToString();
+        LaptopCallSecondsText = DefaultLaptopCallSeconds.ToString();
         SettingsError = "";
     }
 
@@ -63,6 +82,9 @@ public sealed partial class MainViewModel
         LargestFileMegabytesText = settings.Get("largestFileMegabytes", DefaultLargestFileMegabytes.ToString());
         OutputCharactersKeptText = settings.Get("outputCharactersKept", DefaultOutputCharactersKept.ToString());
         PiCommandSecondsText = settings.Get("piCommandSeconds", DefaultPiCommandSeconds.ToString());
+        LaptopPythonText = settings.Get("laptopPython", "");
+        LaptopLoadSecondsText = settings.Get("laptopLoadSeconds", DefaultLaptopLoadSeconds.ToString());
+        LaptopCallSecondsText = settings.Get("laptopCallSeconds", DefaultLaptopCallSeconds.ToString());
         SettingsError = "";
     }
 
@@ -109,6 +131,26 @@ public sealed partial class MainViewModel
         {
             piCommandSeconds = seconds;
             settings.Set("piCommandSeconds", value.Trim());
+        }
+    }
+
+    partial void OnLaptopPythonTextChanged(string value) => settings.Set("laptopPython", value.Trim());
+
+    partial void OnLaptopLoadSecondsTextChanged(string value)
+    {
+        if (TryLimit(value, 1, 3600, "The Laptop load time limit", out int seconds))
+        {
+            laptopLoadSeconds = seconds;
+            settings.Set("laptopLoadSeconds", value.Trim());
+        }
+    }
+
+    partial void OnLaptopCallSecondsTextChanged(string value)
+    {
+        if (TryLimit(value, 1, 3600, "The Laptop call time limit", out int seconds))
+        {
+            laptopCallSeconds = seconds;
+            settings.Set("laptopCallSeconds", value.Trim());
         }
     }
 

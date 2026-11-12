@@ -61,6 +61,13 @@ public sealed class HttpRunnerConnection : IRunnerConnection
         await PostAsync("api/input", new JsonObject { ["text"] = line }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task SendReplyAsync(string replyJson, CancellationToken cancellationToken = default)
+    {
+        // The script's input is a pipe here, so a long reply fits on one line.
+        await PostAsync("api/input", new JsonObject { ["text"] = Protocol.Tag + "reply " + replyJson, ["echo"] = false },
+            cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         stopRequested = true;

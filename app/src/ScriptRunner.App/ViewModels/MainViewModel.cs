@@ -24,6 +24,13 @@ public sealed partial class FileEntry : ObservableObject
     public byte[] Data { get; }
 
     public bool IsScript => Name.EndsWith(".py", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// True when the file stays on this computer instead of going to the Pi. Laptop .py files are imported there, and
+    /// the robot's script calls their functions with remote_execute().
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsLaptop { get; set; }
 }
 
 /// <summary>The app's only screen: connection, files, Run and Stop, output, input, and images.</summary>
@@ -188,10 +195,18 @@ public sealed partial class MainViewModel : ViewModelBase
             {
                 Files.Remove(existing);
             }
-            Files.Add(new FileEntry(name, data));
+            var entry = new FileEntry(name, data) { IsLaptop = existing?.IsLaptop ?? false };   // a replaced file keeps its place
+            entry.PropertyChanged += (_, e) =>
+            {
+                if (nameof(FileEntry.IsLaptop) == e.PropertyName)
+                {
+                    RefreshScripts();           // a Laptop file cannot be the script that runs on the Pi
+                }
+            };
+            Files.Add(entry);
         }
         RefreshScripts();
-        string? newest = added.Select(file => file.Name).LastOrDefault(name => name.EndsWith(".py", StringComparison.OrdinalIgnoreCase));
+        string? newest = added.Select(file => file.Name).LastOrDefault(name => Scripts.Contains(name));
         if (newest is not null)
         {
             SelectedScript = newest;
@@ -266,7 +281,9 @@ public sealed partial class MainViewModel : ViewModelBase
             ClearOutput();
             StatusText = "Connecting…";
             IsRunning = true;
-            List<RunFile> files = Files.Select(f => new RunFile(f.Name, f.Data)).ToList();
+            List<RunFile> files = Files.Where(f => !f.IsLaptop).Select(f => new RunFile(f.Name, f.Data)).ToList();
+            await StartLaptopFunctionsAsync(Files.Where(f => f.IsLaptop).Select(f => new RunFile(f.Name, f.Data)).ToList());
+            StatusText = "Connecting…";
             await connection.StartAsync(files, SelectedScript!);
             SaveRememberedSecret();
         }
@@ -275,6 +292,7 @@ public sealed partial class MainViewModel : ViewModelBase
             IsRunning = false;
             StatusText = "Ready";
             ErrorText = error.Message;
+            await StopLaptopFunctionsAsync();
         }
     }
 
@@ -304,6 +322,11 @@ public sealed partial class MainViewModel : ViewModelBase
         InputText = "";
         if (connection is null || !IsRunning)
         {
+            return;
+        }
+        if (0 < pendingCalls)
+        {
+            heldInput.Add(line);        // sent once the laptop has answered, so it is not taken as the answer
             return;
         }
         try
@@ -488,6 +511,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 Append("\n[" + ending + "]\n");
                 IsRunning = false;
                 StatusText = "Ready";
+                _ = StopLaptopFunctionsAsync();
                 break;
         }
         ShowOutput();
@@ -522,6 +546,12 @@ public sealed partial class MainViewModel : ViewModelBase
                     if (connection is not null)
                     {
                         showQueue = ShowFileAfterAsync(showQueue, connection, show.FileName);
+                    }
+                    break;
+                case CallItem call:
+                    if (connection is not null)
+                    {
+                        QueueCall(connection, call.RequestJson);
                     }
                     break;
             }
@@ -645,7 +675,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <summary>Updates the list of scripts in place, so the selected script stays selected.</summary>
     private void RefreshScripts()
     {
-        var names = Files.Where(f => f.IsScript).Select(f => f.Name).ToList();
+        var names = Files.Where(f => f.IsScript && !f.IsLaptop).Select(f => f.Name).ToList();
         foreach (string gone in Scripts.Where(name => !names.Contains(name)).ToList())
         {
             Scripts.Remove(gone);
@@ -688,6 +718,7 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             IRunnerConnection closing = connection;
             connection = null;              // first, so events from the closing connection are ignored
+            await StopLaptopFunctionsAsync();
             connectionSettings = null;
             IsConnected = false;
             await closing.DisposeAsync();

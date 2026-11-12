@@ -14,8 +14,11 @@ public sealed record SayItem(string Text) : OutputItem;
 /// <summary>runner_io.play(): a sound file to play.</summary>
 public sealed record PlayItem(string FileName) : OutputItem;
 
-/// <summary>runner_io.show(): an image file to display.</summary>
+/// <summary>runner_io.show(): a file to display and keep.</summary>
 public sealed record ShowItem(string FileName) : OutputItem;
+
+/// <summary>runner_io.remote_execute(): a request to call a Laptop function, as JSON.</summary>
+public sealed record CallItem(string RequestJson) : OutputItem;
 
 /// <summary>
 /// Splits a script's output into text to display and runner_io messages (lines starting with
@@ -120,6 +123,12 @@ public sealed class OutputParser
             case "show":
                 items.Add(new ShowItem(value));
                 break;
+            case "call":
+                items.Add(new CallItem(value));
+                break;
+            case "reply":
+            case "reply-file":
+                break;                          // an answer sent to the script, echoed by the terminal: not shown
             default:
                 items.Add(new TextItem(line + "\n"));
                 break;
