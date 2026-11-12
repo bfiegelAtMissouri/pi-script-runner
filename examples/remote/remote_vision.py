@@ -1,8 +1,8 @@
 """
-Laptop file: object detection with Ultralytics YOLO, run on the laptop instead of the robot's Pi.
+Local file: object detection with Ultralytics YOLO, run on the laptop instead of the robot's Pi.
 
-In the app, add this file with "Laptop" checked beside it. The laptop's Python needs Ultralytics
-(pip install ultralytics); if it is not the Python the app finds, choose it under Settings, Laptop Python.
+In the app, add this file with "Local" checked beside it. The laptop's Python needs Ultralytics
+(pip install ultralytics); if it is not the Python the app finds, choose it under Settings, Local Python.
 The model is loaded once, when the run starts; the first run downloads it.
 """
 from ultralytics import YOLO

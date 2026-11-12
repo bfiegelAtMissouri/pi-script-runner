@@ -2,8 +2,8 @@
 Robot that looks around: takes a photo, has the laptop find objects in it with YOLO, and says what it sees. Its
 lights turn red when it sees a person. Stop (or Esc) ends it.
 
-Add robot_api.py, and laptop_vision.py with "Laptop" checked beside it. Needs the RVR and the Pi camera on the
-robot, and Ultralytics on the laptop (see laptop_vision.py).
+Add robot_api.py, and remote_vision.py with "Local" checked beside it. Needs the RVR and the Pi camera on the
+robot, and Ultralytics on the laptop (see remote_vision.py).
 """
 from robot_api import Robot
 from runner_io import remote_execute, shared_runner_file, say, show

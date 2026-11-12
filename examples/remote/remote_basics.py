@@ -1,8 +1,8 @@
 """
 remote_execute() basics: the robot calls functions that run on the laptop.
 
-Add laptop_tools.py too, with "Laptop" checked beside it, then run this file. Needs only the app (the browser page
-cannot run laptop functions).
+Add remote_tools.py too, with "Local" checked beside it, then run this file. Needs only the app (the browser page
+cannot run local functions).
 """
 import random
 
@@ -13,7 +13,7 @@ try:
     print("Readings:", readings)
     print("Average, worked out on the laptop:", remote_execute("average", readings))
 
-    # A file made on the robot is sent with shared_runner_file(); the laptop function receives its own copy's path.
+    # A file made on the robot is sent with shared_runner_file(); the local function receives its own copy's path.
     with open("distances.csv", "w") as handle:
         handle.write("time,distance\n")
         for second, distance in enumerate(readings):

@@ -4,48 +4,48 @@ using ScriptRunner.Core;
 namespace ScriptRunner.App.ViewModels;
 
 /// <summary>
-/// Laptop functions: .py files marked Laptop are imported on this computer when a run starts, and the robot's script
+/// local functions: .py files marked Local are imported on this computer when a run starts, and the robot's script
 /// calls their functions with runner_io.remote_execute(). Calls are answered one at a time, in order.
 /// </summary>
 public sealed partial class MainViewModel
 {
     private const string SharedFileMarker = "__shared_runner_file__";
 
-    private LaptopFunctions? laptop;
+    private LocalFunctions? localFunctions;
     private Task callQueue = Task.CompletedTask;
     private int pendingCalls;
     private readonly List<string> heldInput = new();
 
-    /// <summary>Starts the Laptop files for this run, or does nothing when there are none.</summary>
-    private async Task StartLaptopFunctionsAsync(IReadOnlyList<RunFile> laptopFiles)
+    /// <summary>Starts the local files for this run, or does nothing when there are none.</summary>
+    private async Task StartLocalFunctionsAsync(IReadOnlyList<RunFile> localFiles)
     {
-        await StopLaptopFunctionsAsync();
-        if (0 == laptopFiles.Count)
+        await StopLocalFunctionsAsync();
+        if (0 == localFiles.Count)
         {
             return;
         }
         if (OperatingSystem.IsAndroid())
         {
-            throw new RunnerException("Laptop files need Python, which this device does not have. Uncheck Laptop, " +
+            throw new RunnerException("local files need Python, which this device does not have. Uncheck Local, " +
                                       "or run from a Windows, macOS, or Linux computer.");
         }
-        LaptopPython python = LaptopPython.Find(LaptopPythonText)
-            ?? throw new RunnerException("Laptop files need Python on this computer, and none was found. Install " +
-                                         "Python, or choose it under Settings, Laptop Python.");
-        StatusText = "Loading Laptop files…";
-        Append($"[Loading Laptop files with {python}]\n");
+        LocalPython python = LocalPython.Find(LocalPythonText)
+            ?? throw new RunnerException("local files need Python on this computer, and none was found. Install " +
+                                         "Python, or choose it under Settings, Local Python.");
+        StatusText = "Loading local files…";
+        Append($"[Loading local files with {python}]\n");
         ShowOutput();
-        laptop = await LaptopFunctions.StartAsync(python, laptopFiles,
-            printed => ui.Post(() => { Append("[laptop] " + printed + "\n"); ShowOutput(); }),
-            TimeSpan.FromSeconds(laptopLoadSeconds), TimeSpan.FromSeconds(laptopCallSeconds));
-        Append("[Laptop functions: " + (0 < laptop.Functions.Count ? string.Join(", ", laptop.Functions) : "none") + "]\n");
+        localFunctions = await LocalFunctions.StartAsync(python, localFiles,
+            printed => ui.Post(() => { Append("[local] " + printed + "\n"); ShowOutput(); }),
+            TimeSpan.FromSeconds(localLoadSeconds), TimeSpan.FromSeconds(localCallSeconds));
+        Append("[Local functions: " + (0 < localFunctions.Functions.Count ? string.Join(", ", localFunctions.Functions) : "none") + "]\n");
         ShowOutput();
     }
 
-    private async Task StopLaptopFunctionsAsync()
+    private async Task StopLocalFunctionsAsync()
     {
-        LaptopFunctions? stopping = laptop;
-        laptop = null;
+        LocalFunctions? stopping = localFunctions;
+        localFunctions = null;
         if (stopping is not null)
         {
             await stopping.DisposeAsync();
@@ -56,10 +56,10 @@ public sealed partial class MainViewModel
     private void QueueCall(IRunnerConnection source, string requestJson)
     {
         ++pendingCalls;
-        callQueue = AnswerCallAfterAsync(callQueue, source, laptop, requestJson);
+        callQueue = AnswerCallAfterAsync(callQueue, source, localFunctions, requestJson);
     }
 
-    private async Task AnswerCallAfterAsync(Task previous, IRunnerConnection source, LaptopFunctions? functions,
+    private async Task AnswerCallAfterAsync(Task previous, IRunnerConnection source, LocalFunctions? functions,
         string requestJson)
     {
         await previous;                 // never throws: every failure below becomes an answer to the script
@@ -74,8 +74,8 @@ public sealed partial class MainViewModel
             ShowOutput();
             if (functions is null)
             {
-                reply = LaptopFunctions.Failure(id, $"No Laptop files are loaded, so {function} cannot run. Add the " +
-                                                    "file that defines it and check Laptop beside it.");
+                reply = LocalFunctions.Failure(id, $"No local files are loaded, so {function} cannot run. Add the " +
+                                                    "file that defines it and check Local beside it.");
             }
             else
             {
@@ -86,7 +86,7 @@ public sealed partial class MainViewModel
         }
         catch (Exception error)
         {
-            reply = LaptopFunctions.Failure(id, "The laptop call could not be completed: " + error.Message);
+            reply = LocalFunctions.Failure(id, "The local function call could not be completed: " + error.Message);
         }
 
         try
@@ -95,7 +95,7 @@ public sealed partial class MainViewModel
         }
         catch (RunnerException error)
         {
-            Append($"[Could not send the laptop's answer: {error.Message}]\n");
+            Append($"[Could not send the local function's answer: {error.Message}]\n");
             ShowOutput();
         }
         finally
@@ -109,10 +109,10 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>
-    /// Replaces each shared_runner_file(...) marker in the arguments with the path of a laptop copy of that file,
+    /// Replaces each shared_runner_file(...) marker in the arguments with the path of a local copy of that file,
     /// downloaded from the Pi.
     /// </summary>
-    private async Task<JsonNode?> ShareRunnerFilesAsync(IRunnerConnection source, LaptopFunctions functions, JsonNode? node)
+    private async Task<JsonNode?> ShareRunnerFilesAsync(IRunnerConnection source, LocalFunctions functions, JsonNode? node)
     {
         switch (node)
         {

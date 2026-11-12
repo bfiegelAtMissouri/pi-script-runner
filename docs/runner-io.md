@@ -28,14 +28,14 @@ Speech is queued: several `say()` calls in a row are spoken in order. `say()`
 returns immediately, so the script does not wait for speech to finish; add a
 `time.sleep()` if the timing matters.
 
-## Functions on the laptop (app only)
+## Local functions (app only)
 
 `remote_execute()` calls a Python function that runs on the laptop, and waits for its result. The functions are
-in `.py` files added in the app with **Laptop** checked beside them. Those files stay on the laptop and are imported
+in `.py` files added in the app with **Local** checked beside them. Those files stay on the laptop and are imported
 there, with the laptop's Python, when the run starts, so slow setup (such as loading a YOLO model) happens once.
 
 ```python
-# vision.py, added with Laptop checked: runs on the laptop
+# vision.py, added with Local checked: runs on the laptop
 from ultralytics import YOLO
 model = YOLO("yolo11n.pt")
 
@@ -53,23 +53,23 @@ seen = remote_execute("detect", shared_runner_file("/tmp/view.jpg"), 0.5)   # fo
 
 | Function | Effect |
 | :--- | :--- |
-| `remote_execute(name, *args)` | Calls the laptop function `name` with `args` and returns its result |
+| `remote_execute(name, *args)` | Calls the local function `name` with `args` and returns its result |
 | `shared_runner_file(path)` | Marks an argument as a file on the Pi. The runner copies it to the laptop, and the function receives the copy's path as a string. |
 
 - Arguments and results can be numbers, strings, `True`/`False`/`None`, lists, and dictionaries (as in JSON).
   Results such as numpy numbers and arrays are converted to plain numbers and lists.
-- If the laptop function raises an error, `remote_execute()` raises `RemoteExecutionError` with the laptop's message,
+- If the local function raises an error, `remote_execute()` raises `RemoteExecutionError` with the laptop's message,
   so `try`/`except` works across the two computers.
-- Only functions defined in the Laptop files can be called, by name. Names starting with `_`, and functions a Laptop
+- Only functions defined in the local files can be called, by name. Names starting with `_`, and functions a local
   file imports from elsewhere (for example `os.system`), cannot. The robot chooses which of these functions runs and
   sends it data; it never sends code to the laptop.
 - The script waits for the answer, so stop the motors before a call that takes a while. Input typed in the app while
   a call is running is held until the answer arrives.
-- `print()` in a laptop function appears in the app's output, marked `[laptop]`.
-- The browser page cannot run laptop functions: there, `remote_execute()` raises `RemoteExecutionError` at once.
+- `print()` in a local function appears in the app's output, marked `[local]`.
+- The browser page cannot run local functions: there, `remote_execute()` raises `RemoteExecutionError` at once.
 
-Limits (app Settings): the time the Laptop files may take to load, and the time one call may take. A call that runs
-over its limit stops the laptop functions for the rest of that run.
+Limits (app Settings): the time the local files may take to load, and the time one call may take. A call that runs
+over its limit stops the local functions for the rest of that run.
 
 ## How it works
 

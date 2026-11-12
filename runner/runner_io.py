@@ -21,7 +21,7 @@ With the app, a script can also call Python functions that run on the laptop:
 
     seen = remote_execute("detect", shared_runner_file("/tmp/view.jpg"), 0.5)
 
-The functions are in .py files added in the app with "Laptop" checked. See remote_execute().
+The functions are in .py files added in the app with "Local" checked. See remote_execute().
 """
 import json
 import os
@@ -54,7 +54,7 @@ def show(filename):
 # ---- Functions on the laptop ------------------------------------------------------------------------------
 
 class RemoteExecutionError(Exception):
-    """A laptop function failed, or could not be called. The message says why."""
+    """A local function failed, or could not be called. The message says why."""
 
 
 _next_call_id = [0]
@@ -64,21 +64,21 @@ def shared_runner_file(path):
     """
     Purpose: mark an argument of remote_execute() as a file on the Pi to send to the laptop
     Inputs:  path - a file in the script's folder, or an absolute path in /tmp
-    Returns: a marker; the laptop function receives the path of the laptop's copy, as a string
+    Returns: a marker; the local function receives the path of the laptop's copy, as a string
     """
     return {"__shared_runner_file__": str(path)}
 
 
 def remote_execute(function_name, *args):
     """
-    Purpose: call a function defined in one of the app's Laptop files, and wait for its result
+    Purpose: call a function defined in one of the app's local files, and wait for its result
     Inputs:  function_name - the function's name, as a string, for example "detect"
              args - its arguments: numbers, strings, True/False/None, lists, dictionaries, and shared_runner_file(...)
     Returns: the function's return value (numbers, strings, lists, and dictionaries come back as they are)
     Raises:  RemoteExecutionError if the function raised an error on the laptop or could not be called
 
     The script waits until the laptop answers, so stop the motors before a call that takes a while.
-    Works only when the script was started from the app (the browser page cannot run laptop functions).
+    Works only when the script was started from the app (the browser page cannot run local functions).
     """
     _next_call_id[0] += 1
     call_id = _next_call_id[0]

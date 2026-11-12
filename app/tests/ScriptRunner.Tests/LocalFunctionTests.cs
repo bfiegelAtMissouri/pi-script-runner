@@ -8,10 +8,10 @@ using Xunit;
 namespace ScriptRunner.Tests;
 
 /// <summary>
-/// remote_execute(): a script on the "Pi" (the test SSH server or a local Pi server) calls functions in a Laptop file,
+/// remote_execute(): a script on the "Pi" (the test SSH server or a local Pi server) calls functions in a local file,
 /// run by the app's view model with this computer's Python.
 /// </summary>
-public sealed class LaptopTests
+public sealed class LocalFunctionTests
 {
     private const string RobotScript = """
         from runner_io import remote_execute, shared_runner_file, RemoteExecutionError
@@ -26,13 +26,13 @@ public sealed class LaptopTests
         try:
             remote_execute("system", "echo hacked")
         except RemoteExecutionError as error:
-            print("refused", "No Laptop function named system" in str(error))
+            print("refused", "No local function named system" in str(error))
         print(remote_execute("slow"))
         print("got", input())
         print("DONE")
         """;
 
-    private const string LaptopFile = """
+    private const string LocalFile = """
         import os
         import time
         from os import system
@@ -78,7 +78,7 @@ public sealed class LaptopTests
 
     private static async Task RunAsync(int modeIndex, string host, string port, string user, string secret)
     {
-        string settingsFolder = Directory.CreateTempSubdirectory("script-runner-laptop-test").FullName;
+        string settingsFolder = Directory.CreateTempSubdirectory("script-runner-local-test").FullName;
         ScriptRunner.App.App.Platform = new PlatformServices(new UiTests.RecordingSpeech(), new UiTests.SilentAudio(),
             new NoSecretStore(), settingsFolder);
         Dispatcher ui = await HeadlessApp.StartAsync();
@@ -94,11 +94,11 @@ public sealed class LaptopTests
             model.Secret = secret;
             model.AddFiles(new[]
             {
-                ("vision.py", Encoding.UTF8.GetBytes(LaptopFile)),
+                ("vision.py", Encoding.UTF8.GetBytes(LocalFile)),
                 ("robot.py", Encoding.UTF8.GetBytes(RobotScript)),
             });
-            model.Files.Single(f => "vision.py" == f.Name).IsLaptop = true;
-            Assert.Equal(new[] { "robot.py" }, model.Scripts);              // a Laptop file is not run on the Pi
+            model.Files.Single(f => "vision.py" == f.Name).IsLocal = true;
+            Assert.Equal(new[] { "robot.py" }, model.Scripts);              // a local file is not run on the Pi
             model.RunCommand.Execute(null);
         }, DispatcherPriority.Normal, cancel);
         MainViewModel viewModel = model!;
@@ -112,8 +112,8 @@ public sealed class LaptopTests
         await UiTests.WaitUntil(ui, viewModel, () => !viewModel.IsRunning && viewModel.OutputText.Contains("[Finished", StringComparison.Ordinal));
 
         string output = viewModel.OutputText;
-        Assert.Contains("[laptop] vision loaded", output, StringComparison.Ordinal);
-        Assert.Contains("[Laptop functions: add, big, describe, fails, slow]", output, StringComparison.Ordinal);
+        Assert.Contains("[local] vision loaded", output, StringComparison.Ordinal);
+        Assert.Contains("[Local functions: add, big, describe, fails, slow]", output, StringComparison.Ordinal);
         Assert.Contains("sum 5", output, StringComparison.Ordinal);
         Assert.Contains("described ['data.csv', 'a,b\\n1,2\\n', 'x', True]", output, StringComparison.Ordinal);
         Assert.Contains("big 5000", output, StringComparison.Ordinal);       // in SSH mode, longer than a terminal line

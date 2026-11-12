@@ -54,9 +54,9 @@ that is not allowed is reported and the previous one stays in effect. **Restore 
 | Largest file (MB) | 20 | Larger files from `show()` and `play()` are not downloaded; the output says so |
 | Output kept (characters) | 200,000 | Older output is dropped past this |
 | Pi command time limit (s) | 30 | Longest a command in the Pi command box may run (SSH mode) |
-| Laptop Python | automatic | Python that runs Laptop files: a path or command; blank finds one |
-| Laptop load time limit (s) | 120 | Longest the Laptop files may take to load when a run starts |
-| Laptop call time limit (s) | 60 | Longest one `remote_execute()` call may take on the laptop |
+| Local Python | automatic | Python that runs local files: a path or command; blank finds one |
+| Local load time limit (s) | 120 | Longest the local files may take to load when a run starts |
+| Local call time limit (s) | 60 | Longest one `remote_execute()` call may take on the laptop |
 
 The Pi server has its own limits, set when it is installed: the default time limit (`--max-seconds`) and the largest
 upload per run (`--max-upload-mb`). See [installation.md](installation.md).
@@ -96,17 +96,17 @@ repeated names rather than replacing files. The Pi's copy is erased at the start
 you want to keep. A script can use `show()` to send any file it makes, such as a CSV of sensor readings, to the
 laptop.
 
-### Functions on the laptop
+### Local functions
 
-Check **Laptop** beside a file to keep it on this computer instead of sending it to the Pi. When a run starts,
-Laptop `.py` files are imported with this computer's Python, and the robot's script calls their functions with
-`remote_execute()` ([runner-io.md](runner-io.md#functions-on-the-laptop-app-only)). Other Laptop files (for example
+Check **Local** beside a file to keep it on this computer instead of sending it to the Pi. When a run starts,
+Local `.py` files are imported with this computer's Python, and the robot's script calls their functions with
+`remote_execute()` ([runner-io.md](runner-io.md#local-functions-app-only)). Other local files (for example
 a model's weights) are placed beside them. This lets heavy work, such as Ultralytics YOLO, run on the laptop.
 
-- The output shows `[Laptop functions: ...]` when they are loaded, `💻 name` for each call, and anything they print,
-  marked `[laptop]`. A file that cannot be loaded stops the run before the script starts, with Python's error.
+- The output shows `[Local functions: ...]` when they are loaded, `💻 name` for each call, and anything they print,
+  marked `[local]`. A file that cannot be loaded stops the run before the script starts, with Python's error.
 - Python: the app uses the Windows launcher (`py -3`), `python3`, or `python`, whichever it finds first. To use a
-  specific one, for example a virtual environment with Ultralytics installed, set **Laptop Python** in Settings to
+  specific one, for example a virtual environment with Ultralytics installed, set **Local Python** in Settings to
   its path.
 - Not available on Android, which has no Python.
 

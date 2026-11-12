@@ -17,7 +17,7 @@ public sealed record PlayItem(string FileName) : OutputItem;
 /// <summary>runner_io.show(): a file to display and keep.</summary>
 public sealed record ShowItem(string FileName) : OutputItem;
 
-/// <summary>runner_io.remote_execute(): a request to call a Laptop function, as JSON.</summary>
+/// <summary>runner_io.remote_execute(): a request to call a local function, as JSON.</summary>
 public sealed record CallItem(string RequestJson) : OutputItem;
 
 /// <summary>

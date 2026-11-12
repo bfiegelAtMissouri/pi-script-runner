@@ -26,11 +26,11 @@ public sealed partial class FileEntry : ObservableObject
     public bool IsScript => Name.EndsWith(".py", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// True when the file stays on this computer instead of going to the Pi. Laptop .py files are imported there, and
+    /// True when the file stays on this computer instead of going to the Pi. Local .py files are imported there, and
     /// the robot's script calls their functions with remote_execute().
     /// </summary>
     [ObservableProperty]
-    public partial bool IsLaptop { get; set; }
+    public partial bool IsLocal { get; set; }
 }
 
 /// <summary>The app's only screen: connection, files, Run and Stop, output, input, and images.</summary>
@@ -195,12 +195,12 @@ public sealed partial class MainViewModel : ViewModelBase
             {
                 Files.Remove(existing);
             }
-            var entry = new FileEntry(name, data) { IsLaptop = existing?.IsLaptop ?? false };   // a replaced file keeps its place
+            var entry = new FileEntry(name, data) { IsLocal = existing?.IsLocal ?? false };   // a replaced file keeps its place
             entry.PropertyChanged += (_, e) =>
             {
-                if (nameof(FileEntry.IsLaptop) == e.PropertyName)
+                if (nameof(FileEntry.IsLocal) == e.PropertyName)
                 {
-                    RefreshScripts();           // a Laptop file cannot be the script that runs on the Pi
+                    RefreshScripts();           // a local file cannot be the script that runs on the Pi
                 }
             };
             Files.Add(entry);
@@ -281,8 +281,8 @@ public sealed partial class MainViewModel : ViewModelBase
             ClearOutput();
             StatusText = "Connecting…";
             IsRunning = true;
-            List<RunFile> files = Files.Where(f => !f.IsLaptop).Select(f => new RunFile(f.Name, f.Data)).ToList();
-            await StartLaptopFunctionsAsync(Files.Where(f => f.IsLaptop).Select(f => new RunFile(f.Name, f.Data)).ToList());
+            List<RunFile> files = Files.Where(f => !f.IsLocal).Select(f => new RunFile(f.Name, f.Data)).ToList();
+            await StartLocalFunctionsAsync(Files.Where(f => f.IsLocal).Select(f => new RunFile(f.Name, f.Data)).ToList());
             StatusText = "Connecting…";
             await connection.StartAsync(files, SelectedScript!);
             SaveRememberedSecret();
@@ -292,7 +292,7 @@ public sealed partial class MainViewModel : ViewModelBase
             IsRunning = false;
             StatusText = "Ready";
             ErrorText = error.Message;
-            await StopLaptopFunctionsAsync();
+            await StopLocalFunctionsAsync();
         }
     }
 
@@ -511,7 +511,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 Append("\n[" + ending + "]\n");
                 IsRunning = false;
                 StatusText = "Ready";
-                _ = StopLaptopFunctionsAsync();
+                _ = StopLocalFunctionsAsync();
                 break;
         }
         ShowOutput();
@@ -675,7 +675,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <summary>Updates the list of scripts in place, so the selected script stays selected.</summary>
     private void RefreshScripts()
     {
-        var names = Files.Where(f => f.IsScript && !f.IsLaptop).Select(f => f.Name).ToList();
+        var names = Files.Where(f => f.IsScript && !f.IsLocal).Select(f => f.Name).ToList();
         foreach (string gone in Scripts.Where(name => !names.Contains(name)).ToList())
         {
             Scripts.Remove(gone);
@@ -718,7 +718,7 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             IRunnerConnection closing = connection;
             connection = null;              // first, so events from the closing connection are ignored
-            await StopLaptopFunctionsAsync();
+            await StopLocalFunctionsAsync();
             connectionSettings = null;
             IsConnected = false;
             await closing.DisposeAsync();

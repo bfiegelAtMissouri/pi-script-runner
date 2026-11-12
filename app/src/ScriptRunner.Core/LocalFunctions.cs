@@ -6,19 +6,19 @@ using System.Text.Json.Nodes;
 namespace ScriptRunner.Core;
 
 /// <summary>
-/// The user's Laptop files, loaded in a Python process on this computer, whose functions the robot's script calls
+/// The user's local files, loaded in a Python process on this computer, whose functions the robot's script calls
 /// with runner_io.remote_execute(). One instance serves one run. Calls must be made one at a time.
 /// </summary>
-public sealed class LaptopFunctions : IAsyncDisposable
+public sealed class LocalFunctions : IAsyncDisposable
 {
-    private const string HostName = "_laptop_host.py";
+    private const string HostName = "_local_host.py";
 
     private readonly Process process;
     private readonly string folder;
     private readonly TimeSpan callTimeout;
     private bool stopped;
 
-    private LaptopFunctions(Process process, string folder, TimeSpan callTimeout, IReadOnlyList<string> functions)
+    private LocalFunctions(Process process, string folder, TimeSpan callTimeout, IReadOnlyList<string> functions)
     {
         this.process = process;
         this.folder = folder;
@@ -34,11 +34,11 @@ public sealed class LaptopFunctions : IAsyncDisposable
     public string DownloadsFolder { get; }
 
     /// <summary>
-    /// Writes the Laptop files to a new temporary folder, starts Python there, and imports them. Throws
+    /// Writes the local files to a new temporary folder, starts Python there, and imports them. Throws
     /// <see cref="RunnerException"/> with a message for the user if Python cannot be found or a file cannot be loaded.
     /// Text the functions print is passed to <paramref name="printed"/>, one line at a time, from another thread.
     /// </summary>
-    public static async Task<LaptopFunctions> StartAsync(LaptopPython python, IReadOnlyList<RunFile> files,
+    public static async Task<LocalFunctions> StartAsync(LocalPython python, IReadOnlyList<RunFile> files,
         Action<string> printed, TimeSpan loadTimeout, TimeSpan callTimeout, CancellationToken cancellationToken = default)
     {
         var modules = new List<string>();
@@ -47,13 +47,13 @@ public sealed class LaptopFunctions : IAsyncDisposable
             string module = Path.GetFileNameWithoutExtension(file.Name);
             if (!IsModuleName(module))
             {
-                throw new RunnerException($"The Laptop file {file.Name} needs a name Python can import: letters, " +
+                throw new RunnerException($"The local file {file.Name} needs a name Python can import: letters, " +
                                           "digits, and _ only, not starting with a digit.");
             }
             modules.Add(module);
         }
 
-        string folder = Directory.CreateTempSubdirectory("script-runner-laptop-").FullName;
+        string folder = Directory.CreateTempSubdirectory("script-runner-local-").FullName;
         foreach (RunFile file in files)
         {
             await File.WriteAllBytesAsync(Path.Combine(folder, Path.GetFileName(file.Name)), file.Data, cancellationToken)
@@ -95,7 +95,7 @@ public sealed class LaptopFunctions : IAsyncDisposable
         {
             DeleteFolder(folder);
             throw new RunnerException($"Could not start Python ({python}): {error.Message}. " +
-                                      "Install Python, or choose it under Settings, Laptop Python.", error);
+                                      "Install Python, or choose it under Settings, Local Python.", error);
         }
 
         var errorText = new StringBuilder();
@@ -124,8 +124,8 @@ public sealed class LaptopFunctions : IAsyncDisposable
             catch (OperationCanceledException)
             {
                 Stop(process, folder);
-                throw new RunnerException($"The Laptop files did not finish loading within {(int)loadTimeout.TotalSeconds} s " +
-                                          "(see Settings, Laptop load time limit).");
+                throw new RunnerException($"The local files did not finish loading within {(int)loadTimeout.TotalSeconds} s " +
+                                          "(see Settings, Local load time limit).");
             }
         }
 
@@ -133,12 +133,12 @@ public sealed class LaptopFunctions : IAsyncDisposable
         if (message?["ready"]?.GetValue<bool>() is true)
         {
             var functions = message["functions"]!.AsArray().Select(n => n!.GetValue<string>()).ToList();
-            return new LaptopFunctions(process, folder, callTimeout, functions);
+            return new LocalFunctions(process, folder, callTimeout, functions);
         }
 
         Stop(process, folder);
         string reason = message?["error"]?.GetValue<string>()
-            ?? $"Python ({python}) stopped before loading the Laptop files.\n{errorText}".TrimEnd();
+            ?? $"Python ({python}) stopped before loading the local files.\n{errorText}".TrimEnd();
         throw new RunnerException(reason);
     }
 
@@ -150,7 +150,7 @@ public sealed class LaptopFunctions : IAsyncDisposable
     {
         if (stopped || process.HasExited)
         {
-            return Failure(id, "The laptop functions have stopped. Run the script again to restart them.");
+            return Failure(id, "The local functions have stopped. Run the script again to restart them.");
         }
         var request = new JsonObject { ["id"] = id, ["function"] = function, ["args"] = args };
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -179,7 +179,7 @@ public sealed class LaptopFunctions : IAsyncDisposable
             stopped = true;
             Stop(process, null);
             return Failure(id, $"{function} did not finish within {(int)callTimeout.TotalSeconds} s on the laptop " +
-                               "(see Settings, Laptop call time limit). The laptop functions are stopped for this run.");
+                               "(see Settings, Local call time limit). The local functions are stopped for this run.");
         }
         catch (IOException error)
         {
@@ -254,7 +254,7 @@ public sealed class LaptopFunctions : IAsyncDisposable
 }
 
 /// <summary>How to start Python on this computer: a program and the arguments that come before the script.</summary>
-public sealed record LaptopPython(string FileName, IReadOnlyList<string> Arguments)
+public sealed record LocalPython(string FileName, IReadOnlyList<string> Arguments)
 {
     public override string ToString() => string.Join(" ", new[] { FileName }.Concat(Arguments));
 
@@ -263,21 +263,21 @@ public sealed record LaptopPython(string FileName, IReadOnlyList<string> Argumen
     /// the Windows launcher "py -3", python3, and python, looking also in the usual install folders, which an app
     /// started from the macOS Finder does not have on its PATH. Null if none is found.
     /// </summary>
-    public static LaptopPython? Find(string? chosen)
+    public static LocalPython? Find(string? chosen)
     {
         if (!string.IsNullOrWhiteSpace(chosen))
         {
-            return new LaptopPython(chosen.Trim(), Array.Empty<string>());
+            return new LocalPython(chosen.Trim(), Array.Empty<string>());
         }
         if (OperatingSystem.IsWindows() && FindOnPath("py.exe") is { } launcher)
         {
-            return new LaptopPython(launcher, new[] { "-3" });
+            return new LocalPython(launcher, new[] { "-3" });
         }
         foreach (string name in OperatingSystem.IsWindows() ? new[] { "python.exe" } : new[] { "python3", "python" })
         {
             if (FindOnPath(name) is { } found)
             {
-                return new LaptopPython(found, Array.Empty<string>());
+                return new LocalPython(found, Array.Empty<string>());
             }
         }
         return null;

@@ -16,8 +16,8 @@
     <!-- SSH mode uploads these next to the user's script. runner_io.py is the same file the Pi server uses. -->
     <EmbeddedResource Include="..\..\..\runner\runner_io.py" LogicalName="runner_io.py" />
     <EmbeddedResource Include="Remote\_script_runner_shim.py" LogicalName="_script_runner_shim.py" />
-    <!-- Runs on this computer to call the user's Laptop functions (runner_io.remote_execute). -->
-    <EmbeddedResource Include="Remote\_laptop_host.py" LogicalName="_laptop_host.py" />
+    <!-- Runs on this computer to call the user's local functions (runner_io.remote_execute). -->
+    <EmbeddedResource Include="Remote\_local_host.py" LogicalName="_local_host.py" />
   </ItemGroup>
 
   <ItemGroup>

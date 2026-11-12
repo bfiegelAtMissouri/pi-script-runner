@@ -87,8 +87,8 @@ cleans up when you press Stop (motors off, camera closed, sensors stopped).
 | `sensors/camera_photo.py` | Taking a photo and showing it | Pi camera |
 | `sensors/camera_dominant_color.py` | Showing a photo and saying whether red, green, or blue is strongest in it | Pi camera, numpy |
 | `showcase/explorer.py` | A mission using everything at once: explores while avoiding obstacles, photographs each obstacle, watches the floor for a target color, turns on its headlights in the dark, shows its state on the OLED and with its lights, and gives a spoken summary | Sphero RVR+, Pi camera, Qwiic VL53L1X, Qwiic OLED |
-| `laptop/remote_basics.py` | `remote_execute()`: functions that run on the laptop, including one given a CSV file from the robot (add `laptop_tools.py` with **Laptop** checked; app only) | Nothing |
-| `laptop/robot_detect.py` | Looking around with YOLO object detection run on the laptop, saying what it sees (add `robot_api.py`, and `laptop_vision.py` with **Laptop** checked; app only) | Sphero RVR, Pi camera; Ultralytics on the laptop |
+| `remote/remote_basics.py` | `remote_execute()`: functions that run on the laptop, including one given a CSV file from the robot (add `remote_tools.py` with **Local** checked; app only) | Nothing |
+| `remote/robot_detect.py` | Looking around with YOLO object detection run on the laptop, saying what it sees (add `robot_api.py`, and `remote_vision.py` with **Local** checked; app only) | Sphero RVR, Pi camera; Ultralytics on the laptop |
 | `robot_api/sensor_check.py` | The Robot API: reading the distance and ambient light and showing the distance on the OLED (add `robot_api.py` with it) | Sphero RVR, Qwiic VL53L1X, Qwiic OLED |
 | `robot_api/square_tour.py` | The Robot API: driving a square with colored lights, then at each corner reading the floor color and distance, showing a photo, and saying what it found (add `robot_api.py` with it) | Sphero RVR+, Pi camera, Qwiic VL53L1X, Qwiic OLED |
 

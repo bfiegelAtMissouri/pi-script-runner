@@ -63,7 +63,7 @@ app/                     The Windows, macOS, and Android app (C#, .NET 10, Avalo
 docs/                    Documentation
 examples/                Example scripts (rvr/: Sphero RVR; sensors/: camera and Qwiic; showcase/: all together;
                          robot_api/: a simple Robot class for student scripts;
-                         laptop/: functions that run on the laptop, called with remote_execute())
+                         remote/: functions that run on the laptop, called with remote_execute())
 tests/                   Automated tests for the Pi server
 ```
 

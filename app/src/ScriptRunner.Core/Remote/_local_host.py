@@ -1,15 +1,15 @@
 """
-Runs on the laptop for the Script Runner app: imports the user's Laptop files and calls their functions when the
+Runs on the laptop for the Script Runner app: imports the user's local files and calls their functions when the
 robot's script asks (runner_io.remote_execute).
 
-    python -u _laptop_host.py module_a module_b ...
+    python -u _local_host.py module_a module_b ...
 
-The working folder holds the Laptop files. Messages are JSON, one per line:
+The working folder holds the local files. Messages are JSON, one per line:
   out: {"ready": true, "functions": [...]}   or   {"ready": false, "error": "..."}
   in:  {"id": 1, "function": "detect", "args": [...]}
   out: {"id": 1, "ok": true, "value": ...}   or   {"id": 1, "ok": false, "error": "..."}
 
-Only functions defined in the Laptop files themselves can be called, by plain name. Functions a file imports from
+Only functions defined in the local files themselves can be called, by plain name. Functions a file imports from
 elsewhere (for example os.system) and names starting with _ cannot, so the robot can choose which of the user's
 functions runs and send it data, but never run anything else.
 
@@ -53,13 +53,13 @@ def load_functions(module_names):
             if name.startswith("_") or not inspect.isfunction(value) or value.__module__ != module.__name__:
                 continue
             if name in functions:
-                raise ValueError("Two Laptop files define a function named %s. Rename one of them." % name)
+                raise ValueError("Two local files define a function named %s. Rename one of them." % name)
             functions[name] = value
     return functions
 
 
 def short_traceback(error):
-    """The error, with only the lines from the user's own Laptop files (by file name, without folders)."""
+    """The error, with only the lines from the user's own local files (by file name, without folders)."""
     folder = os.getcwd() + os.sep
     helper = os.path.abspath(__file__)
     frames = [frame for frame in traceback.extract_tb(error.__traceback__)
@@ -73,7 +73,7 @@ def main():
     try:
         functions = load_functions(sys.argv[1:])
     except BaseException as error:              # noqa: B902 - report any failure to load, then stop
-        send({"ready": False, "error": "Could not load the Laptop files:\n" + short_traceback(error)})
+        send({"ready": False, "error": "Could not load the local files:\n" + short_traceback(error)})
         return
     send({"ready": True, "functions": sorted(functions)})
 
@@ -87,7 +87,7 @@ def main():
         if function is None:
             known = ", ".join(sorted(functions)) or "none"
             send({"id": call_id, "ok": False,
-                  "error": "No Laptop function named %s. Functions available: %s." % (name, known)})
+                  "error": "No local function named %s. Functions available: %s." % (name, known)})
             continue
         try:
             value = function(*request.get("args", []))

@@ -1,7 +1,7 @@
 """
-Laptop file: functions the robot's script can call with remote_execute().
+Local file: functions the robot's script can call with remote_execute().
 
-In the app, add this file with "Laptop" checked beside it. It stays on the laptop, and its functions run there,
+In the app, add this file with "Local" checked beside it. It stays on the laptop, and its functions run there,
 with the laptop's Python, when the robot's script asks. Needs nothing beyond Python itself.
 """
 import csv
