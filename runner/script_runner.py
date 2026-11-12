@@ -11,7 +11,7 @@ script sends with the runner_io helper module.
 Uses only the Python standard library (works on Python 3.7).
 
 Usage:
-    python3 script_runner.py --pin 1234 [--port 8000] [--max-seconds 300]
+    python3 script_runner.py --pin 1234 [--port 8000] [--max-seconds 300] [--max-upload-mb 20]
 """
 import argparse
 import base64
@@ -40,7 +40,7 @@ SHARED_MEDIA_DIR = "/tmp"
 LOCK_FILE = os.environ.get("SCRIPT_RUNNER_LOCK_FILE", "/tmp/pi-script-runner.lock")
 INDEX_FILE = os.path.join(HERE, "index.html")
 
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024       # all files in one run, combined
+DEFAULT_MAX_UPLOAD_MB = 20                # all files in one run, combined (--max-upload-mb)
 MAX_LOG_CHARS = 2 * 1024 * 1024           # output kept for the current run
 STOP_GRACE_SECONDS = 3                    # Ctrl+C, then wait this long before forcing
 KEEPALIVE_SECONDS = 15
@@ -49,6 +49,7 @@ MEDIA_TYPES = {
     ".wav": "audio/wav", ".mp3": "audio/mpeg", ".ogg": "audio/ogg",
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
     ".gif": "image/gif", ".bmp": "image/bmp", ".svg": "image/svg+xml",
+    ".csv": "text/csv; charset=utf-8", ".txt": "text/plain; charset=utf-8", ".json": "application/json",
 }
 
 
@@ -252,6 +253,7 @@ class Runner:
 class Handler(BaseHTTPRequestHandler):
     runner = None
     pin = ""
+    max_upload_bytes = DEFAULT_MAX_UPLOAD_MB * 1024 * 1024
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):
@@ -279,7 +281,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _read_json(self):
         length = int(self.headers.get("Content-Length") or 0)
-        if MAX_UPLOAD_BYTES * 2 < length:
+        if self.max_upload_bytes * 2 < length:
             return None
         return json.loads(self.rfile.read(length).decode("utf-8") or "{}")
 
@@ -339,8 +341,9 @@ class Handler(BaseHTTPRequestHandler):
             data = base64.b64decode(item.get("data", ""))
             total += len(data)
             files.append((name, data))
-        if MAX_UPLOAD_BYTES < total:
-            self._json(413, {"error": "Upload too large."})
+        if self.max_upload_bytes < total:
+            self._json(413, {"error": "The files add up to more than this Pi's upload limit of %d MB."
+                                      % (self.max_upload_bytes // (1024 * 1024))})
             return
         main_name = os.path.basename(str(body.get("main", "")))
         if not main_name.endswith(".py") or main_name not in [name for name, _ in files]:
@@ -410,8 +413,14 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": "File not found: %s" % name})
             return
         content_type = MEDIA_TYPES.get(os.path.splitext(path)[1].lower(), "application/octet-stream")
+        # Streamed rather than read into memory, so a large file does not use up the Pi's memory.
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(os.path.getsize(path)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
         with open(path, "rb") as handle:
-            self._send(200, handle.read(), content_type)
+            shutil.copyfileobj(handle, self.wfile)
 
 
 def media_path(run_dir, name):
@@ -431,6 +440,8 @@ def main():
     parser = argparse.ArgumentParser(description="Run Python scripts on this Pi from a browser.")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--pin", default="", help="PIN students must enter (blank = no PIN)")
+    parser.add_argument("--max-upload-mb", type=int, default=DEFAULT_MAX_UPLOAD_MB,
+                        help="largest upload per run, all files combined, in megabytes")
     parser.add_argument("--max-seconds", type=int, default=300,
                         help="default time limit per run, in seconds (0 = no limit); a run may ask for its own")
     args = parser.parse_args()
@@ -438,6 +449,7 @@ def main():
     os.makedirs(RUN_ROOT, exist_ok=True)
     Handler.runner = Runner(args.max_seconds)
     Handler.pin = args.pin
+    Handler.max_upload_bytes = args.max_upload_mb * 1024 * 1024
     server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
     server.daemon_threads = True
     print("Pi Script Runner listening on port %d" % args.port, flush=True)

@@ -38,10 +38,25 @@ the app cannot reach the Pi.
 5. **Stop** (or the Esc key on the desktop) sends Ctrl+C to the script, so its `finally:` block runs. If the script
    does not stop within 3 seconds it is terminated, and then forced to quit if needed.
 
-Each run is stopped automatically after the **Time limit (s)** beside the Run button: 300 seconds unless you change
-it, or 0 for no limit. The setting is remembered and applies in both modes. If a script cannot be confirmed stopped
-after the last
-step, the app stops waiting for it and says so, rather than staying in "Stopping".
+Each run is stopped automatically after the time limit in **Settings**: 300 seconds unless you change it, or 0 for
+no limit. If a script cannot be confirmed stopped after the last step, the app stops waiting for it and says so,
+rather than staying in "Stopping".
+
+### Settings
+
+**Settings** (beside the connection fields) opens the app's limits. Each is saved as soon as it is changed; a value
+that is not allowed is reported and the previous one stays in effect. **Restore defaults** puts them all back.
+
+| Setting | Default | Meaning |
+| :--- | :--- | :--- |
+| Time limit per run (s) | 300 | A run is stopped automatically after this long; 0 means no limit. Applies in both modes. |
+| Files kept beside the output | 100 | Images and files from `show()`; the oldest is dropped past this |
+| Largest file (MB) | 20 | Larger files from `show()` and `play()` are not downloaded; the output says so |
+| Output kept (characters) | 200,000 | Older output is dropped past this |
+| Pi command time limit (s) | 30 | Longest a command in the Pi command box may run (SSH mode) |
+
+The Pi server has its own limits, set when it is installed: the default time limit (`--max-seconds`) and the largest
+upload per run (`--max-upload-mb`). See [installation.md](installation.md).
 
 **Disconnect** closes the app's connection to the Pi and returns the app to Ready. The app keeps its connection
 open between runs, so use Disconnect when the connection seems stuck or before switching Pis. A running script is
@@ -69,13 +84,14 @@ app copies `runner_io.py` next to the script on every run, so nothing needs to b
 | :--- | :--- |
 | `say(text)` | Spoken with the system's text-to-speech (Windows speech, macOS `say`, Android text-to-speech) |
 | `play(file)` | Played with the system's player. `.wav` works everywhere. macOS and Android also play `.mp3` (Android also `.ogg`); Windows plays `.mp3` only on computers that have its optional MPEG player, so use `.wav` for Windows users. |
-| `show(file)` | Shown beside the output. The app shows `.png`, `.jpg`, `.gif`, and `.bmp`; `.svg` works only in the browser page. |
+| `show(file)` | Shown beside the output, any kind of file. Images (`.png`, `.jpg`, `.gif`, `.bmp`, `.webp`) are shown as pictures; `.svg` is shown as a picture only in the browser page. Text files (`.csv`, `.txt`, `.json`, `.py`, and similar) are shown as a card with their first 20 lines. Other files are shown as a card with their name and size. |
 
-Images are kept in the panel beside the output, newest shown as it arrives, across runs and **Clear output**,
-until **Clear images** (the app keeps the latest 100). ◀ and ▶ move between them. **Save…** saves the image on
-screen, and **Save all…** saves every image to a chosen folder, adding a number to repeated names rather than
-replacing files. The Pi's copy of an image is erased at the start of the next run, so save the images you want to
-keep.
+Shown files are kept in the panel beside the output, in the order the script showed them, newest on screen as it
+arrives, across runs and **Clear output**, until **Clear all** (the number kept is a setting). ◀ and ▶ move between
+them. **Save…** saves the file on screen, and **Save all…** saves every file to a chosen folder, adding a number to
+repeated names rather than replacing files. The Pi's copy is erased at the start of the next run, so save the files
+you want to keep. A script can use `show()` to send any file it makes, such as a CSV of sensor readings, to the
+laptop.
 
 ### Passwords and PINs
 

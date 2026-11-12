@@ -57,10 +57,10 @@ public partial class MainView : UserControl
         ViewModel.AddFiles(added);
     }
 
-    private async void OnSaveImage(object? sender, RoutedEventArgs e)
+    private async void OnSaveShown(object? sender, RoutedEventArgs e)
     {
         TopLevel? top = TopLevel.GetTopLevel(this);
-        if (top is null || ViewModel.CurrentShownImage is not { } image)
+        if (top is null || ViewModel.CurrentShown is not { } shown)
         {
             return;
         }
@@ -68,56 +68,56 @@ public partial class MainView : UserControl
         {
             IStorageFile? file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                Title = "Save image",
-                SuggestedFileName = image.FileName,
-                DefaultExtension = Path.GetExtension(image.FileName).TrimStart('.'),
+                Title = "Save file",
+                SuggestedFileName = shown.FileName,
+                DefaultExtension = Path.GetExtension(shown.FileName).TrimStart('.'),
                 ShowOverwritePrompt = true,
             });
             if (file is not null)
             {
-                await WriteAsync(file, image.Data);
+                await WriteAsync(file, shown.Data);
             }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            ViewModel.ErrorText = "Could not save the image: " + error.Message;
+            ViewModel.ErrorText = "Could not save the file: " + error.Message;
         }
     }
 
-    /// <summary>Saves every image into a chosen folder. Repeated names get a number, and existing files are kept.</summary>
-    private async void OnSaveAllImages(object? sender, RoutedEventArgs e)
+    /// <summary>Saves every shown file into a chosen folder. Repeated names get a number, and existing files are kept.</summary>
+    private async void OnSaveAllShown(object? sender, RoutedEventArgs e)
     {
         TopLevel? top = TopLevel.GetTopLevel(this);
-        if (top is null || !ViewModel.HasImages)
+        if (top is null || !ViewModel.HasShownFiles)
         {
             return;
         }
         try
         {
             IReadOnlyList<IStorageFolder> picked = await top.StorageProvider.OpenFolderPickerAsync(
-                new FolderPickerOpenOptions { Title = "Choose a folder for the images" });
+                new FolderPickerOpenOptions { Title = "Choose a folder for the files" });
             if (0 == picked.Count)
             {
                 return;
             }
             IStorageFolder folder = picked[0];
             int saved = 0;
-            foreach (ShownImage image in ViewModel.Images.ToList())
+            foreach (ShownFile shown in ViewModel.ShownFiles.ToList())
             {
-                string name = await UnusedNameAsync(folder, image.FileName);
+                string name = await UnusedNameAsync(folder, shown.FileName);
                 IStorageFile? file = await folder.CreateFileAsync(name);
                 if (file is not null)
                 {
-                    await WriteAsync(file, image.Data);
+                    await WriteAsync(file, shown.Data);
                     ++saved;
                 }
             }
             ViewModel.ErrorText = "";
-            ViewModel.StatusText = $"Saved {saved} image{(1 == saved ? "" : "s")}";
+            ViewModel.StatusText = $"Saved {saved} file{(1 == saved ? "" : "s")}";
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            ViewModel.ErrorText = "Could not save the images: " + error.Message;
+            ViewModel.ErrorText = "Could not save the files: " + error.Message;
         }
     }
 

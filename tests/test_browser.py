@@ -94,6 +94,40 @@ class BrowserTests(unittest.TestCase):
             self.assertEqual([], errors)
             browser.close()
 
+    def test_show_any_file(self):
+        """show() of a CSV gives a card with a preview, other files a card without one; each has a Save link."""
+        script = os.path.join(self.work, "files.py")
+        with open(script, "w") as handle:
+            handle.write("from runner_io import show\n"
+                         "open('data.csv', 'w').write('time,distance\\n0,900\\n1,850\\n')\n"
+                         "open('model.pt', 'wb').write(bytes([1, 0, 2, 3]))\n"
+                         "show('data.csv')\nshow('model.pt')\nshow('dot.png')\n")
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            page = browser.new_page()
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(self.base + "/")
+            page.fill("#pin", PIN)
+            page.set_input_files("#picker", [script, self.image])
+            page.click("#runBtn")
+            page.wait_for_selector("#media .card pre", timeout=5000)
+            page.wait_for_function("document.querySelectorAll('#media a[download]').length === 3", timeout=5000)
+            figures = page.query_selector_all("#media figure")
+            self.assertEqual(3, len(figures))
+            self.assertIsNotNone(figures[0].query_selector("img"), "newest first: the image")
+            self.assertIn("no preview", figures[1].inner_text())
+            self.assertEqual("time,distance\n0,900\n1,850", figures[2].query_selector("pre").inner_text())
+            self.assertEqual("data.csv", figures[2].query_selector("a[download]").get_attribute("download"))
+            with page.expect_download() as download_info:
+                figures[2].query_selector("a[download]").click()
+            saved = os.path.join(self.work, "saved.csv")
+            download_info.value.save_as(saved)
+            with open(saved) as handle:
+                self.assertEqual("time,distance\n0,900\n1,850\n", handle.read())
+            self.assertEqual([], errors)
+            browser.close()
+
 
 if "__main__" == __name__:
     unittest.main()

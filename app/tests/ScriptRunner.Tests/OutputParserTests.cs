@@ -1,3 +1,4 @@
+using System.Text;
 using ScriptRunner.Core;
 using Xunit;
 
@@ -126,5 +127,34 @@ public sealed class OutputParserTests
     {
         var settings = new ConnectionSettings(ConnectionMode.Ssh, "pi.local", 22, "pi", "not-a-real-secret");
         Assert.DoesNotContain("not-a-real-secret", settings.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TextFilesGetAPreviewOfTheirFirstLines()
+    {
+        string lines = string.Join("\n", Enumerable.Range(1, 25).Select(n => "row " + n)) + "\n";
+        using var shown = ScriptRunner.App.ViewModels.ShownFile.Create("/tmp/log.csv", Encoding.UTF8.GetBytes(lines));
+        Assert.False(shown.IsImage);
+        Assert.Equal("log.csv", shown.FileName);
+        Assert.StartsWith("row 1\nrow 2\n", shown.Preview, StringComparison.Ordinal);
+        Assert.EndsWith("row 20\n…", shown.Preview, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShortTextFilesArePreviewedWhole()
+    {
+        using var shown = ScriptRunner.App.ViewModels.ShownFile.Create("data.txt", Encoding.UTF8.GetBytes("a\nb\n"));
+        Assert.Equal("a\nb", shown.Preview);
+    }
+
+    [Theory]
+    [InlineData("model.pt")]                       // not a type the app previews
+    [InlineData("binary.csv")]                     // looks like text by name, but holds binary data
+    public void OtherFilesGetACardWithoutPreview(string name)
+    {
+        using var shown = ScriptRunner.App.ViewModels.ShownFile.Create(name, new byte[] { 1, 0, 2, 3 });
+        Assert.Null(shown.Preview);
+        Assert.False(shown.IsImage);
+        Assert.Equal("4 bytes, no preview", shown.Note);
     }
 }

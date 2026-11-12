@@ -6,6 +6,7 @@ runner_io: send speech, sounds, and images from a script to the Pi Script Runner
     say("Starting the square")   # the laptop speaks this
     play("beep.wav")             # the laptop plays this sound file
     show("map.png")              # the laptop displays this image
+    show("readings.csv")         # the laptop shows its first lines and can save it
 
 Files for play() and show() must be in the same folder as the script (drop them onto
 the page along with the .py file, or have the script create them) or in /tmp
@@ -36,5 +37,5 @@ def play(filename):
 
 
 def show(filename):
-    """Display an image file (.png, .jpg, .gif, .bmp, .svg) on the laptop."""
+    """Send a file to the laptop: images are displayed, text files previewed, and any file can be saved there."""
     _send("show", filename)

@@ -67,15 +67,22 @@ public sealed class HttpRunnerConnection : IRunnerConnection
         await PostAsync("api/stop", new JsonObject(), cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<byte[]> GetFileAsync(string name, CancellationToken cancellationToken = default)
+    public async Task<byte[]> GetFileAsync(string name, long maxBytes = long.MaxValue, CancellationToken cancellationToken = default)
     {
         string url = "api/media?name=" + Uri.EscapeDataString(name);
         try
         {
-            using HttpResponseMessage response = await http.GetAsync(url, cancellationToken).ConfigureAwait(false);
+            // Headers first, so a file over the limit is refused before its contents are downloaded.
+            using HttpResponseMessage response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 throw new RunnerException($"Could not get {name} from the Pi.");
+            }
+            long? size = response.Content.Headers.ContentLength;
+            if (size is not null && maxBytes < size)
+            {
+                throw FileSizes.TooLarge(name, size.Value, maxBytes);
             }
             return await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
         }

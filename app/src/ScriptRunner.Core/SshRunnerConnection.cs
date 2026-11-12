@@ -151,7 +151,7 @@ public sealed class SshRunnerConnection : IRunnerConnection
         }
     }
 
-    public Task<byte[]> GetFileAsync(string name, CancellationToken cancellationToken = default)
+    public Task<byte[]> GetFileAsync(string name, long maxBytes = long.MaxValue, CancellationToken cancellationToken = default)
     {
         SftpClient client = sftp ?? throw new RunnerException("Not connected to the Pi.");
         string path = RemoteMediaPath(name);
@@ -159,6 +159,11 @@ public sealed class SshRunnerConnection : IRunnerConnection
         {
             try
             {
+                long size = client.GetAttributes(path).Size;
+                if (maxBytes < size)
+                {
+                    throw FileSizes.TooLarge(name, size, maxBytes);
+                }
                 using var buffer = new MemoryStream();
                 client.DownloadFile(path, buffer);
                 return buffer.ToArray();

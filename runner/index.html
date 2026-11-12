@@ -58,6 +58,9 @@
   #media figure { margin: 0; }
   #media img { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); background: #fff; }
   #media figcaption { color: var(--muted); font-size: 13px; }
+  #media .card { border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+  #media .card strong { display: block; word-break: break-all; }
+  #media pre { margin: 6px 0 0; max-height: 240px; overflow: auto; font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace; }
   .hint { color: var(--muted); font-size: 13px; }
   .error { color: var(--stop); font-weight: 600; }
 </style>
@@ -331,8 +334,8 @@
       var audio = new Audio(mediaUrl(value));
       audio.play().catch(function () { commit("Could not play " + value + "\n", "notice"); });
     } else if ("show" === kind) {
-      commit("🖼 " + value + "\n", "notice");
-      showImage(value);
+      commit((isImageName(value) ? "🖼 " : "📄 ") + value + "\n", "notice");
+      showFile(value);
     } else {
       commit(line + "\n");
     }
@@ -386,18 +389,82 @@
     return "/api/media?pin=" + encodeURIComponent(pin()) + "&name=" + encodeURIComponent(name) + "&t=" + Date.now();
   }
 
-  function showImage(name) {
+  var IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg"];
+  var TEXT_EXTENSIONS = [".csv", ".tsv", ".txt", ".log", ".json", ".py", ".md", ".xml", ".yaml", ".yml", ".ini", ".cfg"];
+  var PREVIEW_LINES = 20, PREVIEW_CHARS = 2000;
+  var objectUrls = [];
+
+  function extensionOf(name) {
+    var dot = name.lastIndexOf(".");
+    return dot < 0 ? "" : name.slice(dot).toLowerCase();
+  }
+  function isImageName(name) { return -1 !== IMAGE_EXTENSIONS.indexOf(extensionOf(name)); }
+  function baseName(name) { return name.split("/").pop(); }
+  function describeSize(bytes) {
+    if (bytes < 1024) { return bytes + " bytes"; }
+    if (bytes < 1024 * 1024) { return (bytes / 1024).toFixed(1).replace(/\.0$/, "") + " KB"; }
+    return (bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, "") + " MB";
+  }
+  function previewOf(text) {
+    var lines = text.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
+    var preview = lines.slice(0, PREVIEW_LINES).join("\n");
+    var more = PREVIEW_LINES < lines.length;
+    if (PREVIEW_CHARS < preview.length) { preview = preview.slice(0, PREVIEW_CHARS); more = true; }
+    return more ? preview + "\n…" : preview;
+  }
+
+  // The file is downloaded right away (the Pi erases it at the next run), shown newest first, and kept in the page
+  // with a Save link: images as pictures, text files with their first lines, other files with their name and size.
+  function showFile(name) {
     var fig = document.createElement("figure");
-    var img = document.createElement("img");
-    img.alt = name; img.src = mediaUrl(name);
-    img.onerror = function () { cap.textContent = "Could not load " + name; };
-    var cap = document.createElement("figcaption"); cap.textContent = name;
-    fig.appendChild(img); fig.appendChild(cap);
+    var cap = document.createElement("figcaption");
+    cap.textContent = name + " (loading…)";
+    fig.appendChild(cap);
     mediaEl.insertBefore(fig, mediaEl.firstChild);
     mediaEl.hidden = false; layoutEl.classList.add("has-media");
+
+    fetch(mediaUrl(name)).then(function (response) {
+      if (!response.ok) { throw new Error("not found"); }
+      return response.blob();
+    }).then(function (blob) {
+      var url = URL.createObjectURL(blob);
+      objectUrls.push(url);
+      var save = document.createElement("a");
+      save.href = url; save.download = baseName(name); save.textContent = "Save";
+      cap.textContent = name + " · " + describeSize(blob.size) + " · ";
+      cap.appendChild(save);
+      if (isImageName(name)) {
+        var img = document.createElement("img");
+        img.alt = name; img.src = url;
+        img.onerror = function () { fig.removeChild(img); cap.insertBefore(document.createTextNode("could not be displayed · "), save); };
+        fig.insertBefore(img, cap);
+        return;
+      }
+      fig.className = "card";
+      var title = document.createElement("strong");
+      title.textContent = "📄 " + name;
+      fig.insertBefore(title, cap);
+      if (-1 === TEXT_EXTENSIONS.indexOf(extensionOf(name))) {
+        cap.insertBefore(document.createTextNode("no preview · "), save);
+        return;
+      }
+      blob.text().then(function (text) {
+        if (-1 !== text.indexOf("\u0000")) {
+          cap.insertBefore(document.createTextNode("no preview · "), save);
+          return;
+        }
+        var pre = document.createElement("pre");
+        pre.textContent = previewOf(text);
+        fig.appendChild(pre);
+      });
+    }).catch(function () {
+      cap.textContent = "Could not load " + name;
+    });
   }
 
   function clearMedia() {
+    objectUrls.forEach(function (url) { URL.revokeObjectURL(url); });
+    objectUrls = [];
     mediaEl.textContent = ""; mediaEl.hidden = true; layoutEl.classList.remove("has-media");
   }
 

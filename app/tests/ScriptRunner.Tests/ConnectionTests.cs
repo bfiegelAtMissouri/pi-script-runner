@@ -309,9 +309,11 @@ public sealed class ConnectionTests
         await log.WaitForOutputAsync("speed is 30");
         await log.WaitForOutputAsync("@@runner show dot.png");
         Assert.Contains("@@runner say Starting the square", log.Output, StringComparison.Ordinal);
-        Assert.Equal(dot, await connection.GetFileAsync("dot.png", cancel));
+        Assert.Equal(dot, await connection.GetFileAsync("dot.png", cancellationToken: cancel));
         await log.WaitForOutputAsync("@@runner show " + tmpCopy);
-        Assert.Equal(dot, await connection.GetFileAsync(tmpCopy, cancel));
+        Assert.Equal(dot, await connection.GetFileAsync(tmpCopy, cancellationToken: cancel));
+        var tooLarge = await Assert.ThrowsAsync<RunnerException>(() => connection.GetFileAsync("dot.png", 10, cancel));
+        Assert.Contains("larger than the 10 bytes limit", tooLarge.Message, StringComparison.Ordinal);
         await log.WaitForOutputAsync("side 1");
 
         await connection.StopAsync(cancel);

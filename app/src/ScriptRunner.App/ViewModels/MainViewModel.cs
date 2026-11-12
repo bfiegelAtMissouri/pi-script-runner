@@ -29,7 +29,6 @@ public sealed partial class FileEntry : ObservableObject
 /// <summary>The app's only screen: connection, files, Run and Stop, output, input, and images.</summary>
 public sealed partial class MainViewModel : ViewModelBase
 {
-    private const int MaxOutputChars = 200_000;
     private const int SshModeIndex = 0;
     private const int HttpModeIndex = 1;
 
@@ -51,7 +50,7 @@ public sealed partial class MainViewModel : ViewModelBase
         Host = settings.Get("host", "");
         User = settings.Get("user", ConnectionSettings.DefaultUser);
         Port = settings.Get(PortSettingName, DefaultPort.ToString());
-        TimeLimitSeconds = settings.Get("timeLimitSeconds", ConnectionSettings.DefaultMaxSeconds.ToString());
+        LoadLimits();
         SpeakSay = settings.GetBool("speakSay", true);
         SpeakAll = settings.GetBool("speakAll", false);
         RememberSecret = settings.GetBool("rememberSecret", false);
@@ -124,32 +123,39 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial string ErrorText { get; set; } = "";
 
-    /// <summary>Most images kept; when a new one arrives past this, the oldest is dropped.</summary>
-    public const int MaxImages = 100;
+    /// <summary>Every file the scripts have shown, oldest first, kept across runs until Clear all.</summary>
+    public ObservableCollection<ShownFile> ShownFiles { get; } = new();
 
-    /// <summary>Every image the scripts have shown, oldest first, kept across runs until Clear images.</summary>
-    public ObservableCollection<ShownImage> Images { get; } = new();
-
-    /// <summary>Which of Images is on screen, or -1 when there are none.</summary>
+    /// <summary>Which of ShownFiles is on screen, or -1 when there are none.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CurrentShownImage), nameof(CurrentImage), nameof(CurrentImageName),
-        nameof(ImagePosition), nameof(HasImages), nameof(CanShowPreviousImage), nameof(CanShowNextImage))]
-    public partial int ImageIndex { get; set; } = -1;
+    [NotifyPropertyChangedFor(nameof(CurrentShown), nameof(CurrentImage), nameof(CurrentShownName),
+        nameof(CurrentShownNote), nameof(CurrentPreview), nameof(IsCurrentCard), nameof(ShownPosition),
+        nameof(HasShownFiles), nameof(CanShowPrevious), nameof(CanShowNext))]
+    public partial int ShownIndex { get; set; } = -1;
 
-    public ShownImage? CurrentShownImage => 0 <= ImageIndex && ImageIndex < Images.Count ? Images[ImageIndex] : null;
+    public ShownFile? CurrentShown => 0 <= ShownIndex && ShownIndex < ShownFiles.Count ? ShownFiles[ShownIndex] : null;
 
-    public Bitmap? CurrentImage => CurrentShownImage?.Bitmap;
+    /// <summary>The picture on screen, or null when the current file is shown as a card.</summary>
+    public Bitmap? CurrentImage => CurrentShown?.Bitmap;
 
-    public string CurrentImageName => CurrentShownImage?.Name ?? "";
+    public string CurrentShownName => CurrentShown?.Name ?? "";
+
+    public string CurrentShownNote => CurrentShown?.Note ?? "";
+
+    /// <summary>The first lines of a text file, or "" when there is no preview.</summary>
+    public string CurrentPreview => CurrentShown?.Preview ?? "";
+
+    /// <summary>True when the current file is shown as a card (not a picture).</summary>
+    public bool IsCurrentCard => CurrentShown is { IsImage: false };
 
     /// <summary>For example "2 of 5".</summary>
-    public string ImagePosition => HasImages ? $"{ImageIndex + 1} of {Images.Count}" : "";
+    public string ShownPosition => HasShownFiles ? $"{ShownIndex + 1} of {ShownFiles.Count}" : "";
 
-    public bool HasImages => 0 < Images.Count;
+    public bool HasShownFiles => 0 < ShownFiles.Count;
 
-    public bool CanShowPreviousImage => 0 < ImageIndex;
+    public bool CanShowPrevious => 0 < ShownIndex;
 
-    public bool CanShowNextImage => ImageIndex < Images.Count - 1;
+    public bool CanShowNext => ShownIndex < ShownFiles.Count - 1;
 
     [ObservableProperty]
     public partial bool SpeakSay { get; set; }
@@ -397,7 +403,8 @@ public sealed partial class MainViewModel : ViewModelBase
         ShowOutput();
         try
         {
-            CommandResult result = await PiCommand.RunAsync(target with { Mode = ConnectionMode.Ssh }, settings, command);
+            CommandResult result = await PiCommand.RunAsync(target with { Mode = ConnectionMode.Ssh }, settings, command,
+                TimeSpan.FromSeconds(piCommandSeconds));
             Append(result.Output.EndsWith('\n') || 0 == result.Output.Length ? result.Output : result.Output + "\n");
             Append($"[exit code {result.ExitCode?.ToString() ?? "unknown"}]\n");
         }
@@ -511,8 +518,11 @@ public sealed partial class MainViewModel : ViewModelBase
                     _ = PlayAsync(play.FileName);
                     break;
                 case ShowItem show:
-                    Append("🖼 " + show.FileName + "\n");
-                    _ = ShowImageAsync(show.FileName);
+                    Append((ShownFile.LooksLikeImage(show.FileName) ? "🖼 " : "📄 ") + show.FileName + "\n");
+                    if (connection is not null)
+                    {
+                        showQueue = ShowFileAfterAsync(showQueue, connection, show.FileName);
+                    }
                     break;
             }
         }
@@ -522,7 +532,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         try
         {
-            byte[] data = await connection!.GetFileAsync(fileName);
+            byte[] data = await connection!.GetFileAsync(fileName, LargestFileBytes);
             await platform.Audio.PlayAsync(fileName, data);
         }
         catch (Exception error) when (error is RunnerException or IOException or InvalidOperationException)
@@ -531,29 +541,30 @@ public sealed partial class MainViewModel : ViewModelBase
         }
     }
 
-    private async Task ShowImageAsync(string fileName)
+    /// <summary>Shown files are downloaded one after another, so they appear in the order the script showed them.</summary>
+    private Task showQueue = Task.CompletedTask;
+
+    private async Task ShowFileAfterAsync(Task previous, IRunnerConnection source, string fileName)
     {
+        await previous;                 // never throws: every failure below is reported instead
         try
         {
-            byte[] data = await connection!.GetFileAsync(fileName);
-            var bitmap = new Bitmap(new MemoryStream(data));
-            ui.Post(() => AddImage(new ShownImage(fileName, data, bitmap)));
+            byte[] data = await source.GetFileAsync(fileName, LargestFileBytes);
+            ShownFile shown = ShownFile.Create(fileName, data);
+            ui.Post(() => AddShown(shown));
         }
         catch (Exception error)
         {
-            string reason = fileName.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
-                ? "SVG images are shown in the browser page only; use .png or .jpg in the app"
-                : error.Message;
-            ui.Post(() => { Append($"[Could not show {fileName}: {reason}]\n"); ShowOutput(); });
+            ui.Post(() => { Append($"[Could not show {fileName}: {error.Message}]\n"); ShowOutput(); });
         }
     }
 
     private void Append(string text)
     {
         committed.Append(text);
-        if (MaxOutputChars < committed.Length)
+        if (outputCharactersKept < committed.Length)
         {
-            committed.Remove(0, committed.Length - MaxOutputChars);
+            committed.Remove(0, committed.Length - outputCharactersKept);
         }
     }
 
@@ -566,58 +577,68 @@ public sealed partial class MainViewModel : ViewModelBase
         OutputText = "";
     }
 
-    /// <summary>Adds an image at the end and shows it, dropping the oldest past MaxImages.</summary>
-    private void AddImage(ShownImage image)
+    /// <summary>Adds a file at the end and shows it, dropping the oldest past the number kept.</summary>
+    private void AddShown(ShownFile shown)
     {
-        Images.Add(image);
-        while (MaxImages < Images.Count)
-        {
-            Bitmap oldest = Images[0].Bitmap;
-            Images.RemoveAt(0);
-            oldest.Dispose();
-        }
-        ImageIndex = Images.Count - 1;
-        OnImagesChanged();
+        ShownFiles.Add(shown);
+        DropOldestShown();
+        ShownIndex = ShownFiles.Count - 1;
+        OnShownFilesChanged();
     }
 
-    /// <summary>Updates everything shown about the images, after Images itself changed.</summary>
-    private void OnImagesChanged()
+    private void DropOldestShown()
     {
-        foreach (string name in new[] { nameof(CurrentShownImage), nameof(CurrentImage), nameof(CurrentImageName),
-                     nameof(ImagePosition), nameof(HasImages), nameof(CanShowPreviousImage), nameof(CanShowNextImage) })
+        while (shownFilesKept < ShownFiles.Count)
+        {
+            ShownFile oldest = ShownFiles[0];
+            ShownFiles.RemoveAt(0);
+            oldest.Dispose();
+        }
+        if (ShownFiles.Count <= ShownIndex)
+        {
+            ShownIndex = ShownFiles.Count - 1;
+        }
+    }
+
+    /// <summary>Updates everything shown about the files, after ShownFiles itself changed.</summary>
+    private void OnShownFilesChanged()
+    {
+        foreach (string name in new[] { nameof(CurrentShown), nameof(CurrentImage), nameof(CurrentShownName),
+                     nameof(CurrentShownNote), nameof(CurrentPreview), nameof(IsCurrentCard), nameof(ShownPosition),
+                     nameof(HasShownFiles), nameof(CanShowPrevious), nameof(CanShowNext) })
         {
             OnPropertyChanged(name);
         }
     }
 
     [RelayCommand]
-    private void PreviousImage()
+    private void PreviousShown()
     {
-        if (CanShowPreviousImage)
+        if (CanShowPrevious)
         {
-            --ImageIndex;
+            --ShownIndex;
         }
     }
 
     [RelayCommand]
-    private void NextImage()
+    private void NextShown()
     {
-        if (CanShowNextImage)
+        if (CanShowNext)
         {
-            ++ImageIndex;
+            ++ShownIndex;
         }
     }
 
     [RelayCommand]
-    private void ClearImages()
+    private void ClearShown()
     {
-        List<ShownImage> old = Images.ToList();
-        Images.Clear();
-        ImageIndex = -1;
-        OnImagesChanged();
-        foreach (ShownImage image in old)
+        List<ShownFile> old = ShownFiles.ToList();
+        ShownFiles.Clear();
+        ShownIndex = -1;
+        OnShownFilesChanged();
+        foreach (ShownFile shown in old)
         {
-            image.Bitmap.Dispose();
+            shown.Dispose();
         }
     }
 
@@ -646,7 +667,6 @@ public sealed partial class MainViewModel : ViewModelBase
         settings.Set("host", Host.Trim());
         settings.Set("user", User.Trim());
         settings.Set(PortSettingName, Port.Trim());
-        settings.Set("timeLimitSeconds", TimeLimitSeconds.Trim());
     }
 
     private void LoadRememberedSecret()
@@ -673,11 +693,4 @@ public sealed partial class MainViewModel : ViewModelBase
             await closing.DisposeAsync();
         }
     }
-}
-
-/// <summary>An image a script showed: the name it used, the file's bytes (for saving), and the decoded picture.</summary>
-public sealed record ShownImage(string Name, byte[] Data, Bitmap Bitmap)
-{
-    /// <summary>The name without any folder, for saving (for example "photo.jpg" for "/tmp/photo.jpg").</summary>
-    public string FileName => Path.GetFileName(Name.Replace('\\', '/'));
 }

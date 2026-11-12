@@ -40,7 +40,7 @@ Then open `http://<IP>:8000` in a browser.
 ### Installer options
 
 ```text
-sudo python3 install_service.py <PIN> [--port 8000] [--max-seconds 300] [--python PATH]
+sudo python3 install_service.py <PIN> [--port 8000] [--max-seconds 300] [--max-upload-mb 20] [--python PATH]
 python3 install_service.py <PIN> --print     # show the service file without installing
 ```
 
@@ -48,6 +48,7 @@ python3 install_service.py <PIN> --print     # show the service file without ins
 | :--- | :--- | :--- |
 | `<PIN>` | (required) | PIN users enter on the page |
 | `--port` | 8000 | TCP port the page is served on |
+| `--max-upload-mb` | 20 | Largest upload per run, all files combined, in megabytes |
 | `--max-seconds` | 300 | Default time limit per run, in seconds (0 = no limit); the app and page can set their own per run |
 | `--python` | `/usr/bin/python3` | Python that runs the server and the scripts; use a virtual environment's `bin/python3` when the robot libraries are installed in one |
 

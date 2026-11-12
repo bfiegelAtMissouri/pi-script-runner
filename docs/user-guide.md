@@ -59,6 +59,7 @@ from runner_io import say, play, show
 say("Starting the square")     # your computer speaks this
 play("beep.wav")               # your computer plays this sound file
 show("map.png")                # your computer displays this image
+show("readings.csv")           # any file: your computer shows it and can save it
 ```
 
 - `play()` and `show()` use files in the same folder as your script: files you

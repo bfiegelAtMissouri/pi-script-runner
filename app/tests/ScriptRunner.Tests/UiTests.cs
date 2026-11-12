@@ -52,6 +52,7 @@ public sealed class UiTests
                 ("dot.png", File.ReadAllBytes(Path.Combine(ConnectionTests.RepoRoot(), "tests", "data", "dot.png"))),
                 ("hello.py", Encoding.UTF8.GetBytes(
                     "import time\nfrom runner_io import say, show\nshow('dot.png')\nshow('dot.png')\n" +
+                    "open('data.csv', 'w').write('time,distance\\n0,900\\n1,850\\n')\nshow('data.csv')\n" +
                     "name = input('Name? ')\nsay('Hello ' + name)\n" +
                     "try:\n    while True:\n        print('tick')\n        time.sleep(0.3)\nfinally:\n    print('cleanup done')\n")),
             });
@@ -62,6 +63,7 @@ public sealed class UiTests
         MainViewModel viewModel = model!;
 
         await WaitUntil(ui, viewModel, () => viewModel.OutputText.Contains("Name? ", StringComparison.Ordinal));
+        await WaitUntil(ui, viewModel, () => 3 == viewModel.ShownFiles.Count);         // shown files arrive in order
         await ui.InvokeAsync(() =>
         {
             viewModel.InputText = "Ada";
@@ -75,12 +77,16 @@ public sealed class UiTests
             Assert.DoesNotContain("@@runner", viewModel.OutputText, StringComparison.Ordinal);
             Assert.Equal(new[] { "Hello Ada" }, speech.Spoken);
             Assert.True(viewModel.IsRunning);
-            Assert.Equal(2, viewModel.Images.Count);                          // the second image did not replace the first
-            Assert.Equal("2 of 2", viewModel.ImagePosition);
-            viewModel.PreviousImageCommand.Execute(null);
-            Assert.Equal("1 of 2", viewModel.ImagePosition);
-            Assert.False(viewModel.CanShowPreviousImage);
-            Assert.True(viewModel.CanShowNextImage);
+            Assert.Equal(3, viewModel.ShownFiles.Count);                      // nothing replaced anything
+            Assert.Equal("3 of 3", viewModel.ShownPosition);
+            Assert.True(viewModel.IsCurrentCard);                             // the CSV file is shown as a card
+            Assert.Equal("time,distance\n0,900\n1,850", viewModel.CurrentPreview);
+            viewModel.PreviousShownCommand.Execute(null);
+            Assert.Equal("2 of 3", viewModel.ShownPosition);
+            Assert.False(viewModel.IsCurrentCard);                            // the image is shown as a picture
+            Assert.NotNull(viewModel.CurrentImage);
+            Assert.True(viewModel.CanShowPrevious);
+            Assert.True(viewModel.CanShowNext);
             viewModel.StopCommand.Execute(null);
         }, DispatcherPriority.Normal, cancel);
         await WaitUntil(ui, viewModel, () => !viewModel.IsRunning);
@@ -102,6 +108,7 @@ public sealed class UiTests
             viewModel.RunCommand.Execute(null);
         }, DispatcherPriority.Normal, cancel);
         await WaitUntil(ui, viewModel, () => viewModel.OutputText.Contains("Name? ", StringComparison.Ordinal));
+        await WaitUntil(ui, viewModel, () => 6 == viewModel.ShownFiles.Count);         // shown files arrive in order
         await ui.InvokeAsync(() => viewModel.DisconnectCommand.Execute(null), DispatcherPriority.Normal, cancel);
         await WaitUntil(ui, viewModel, () => viewModel.OutputText.Contains("[Disconnected from the Pi.", StringComparison.Ordinal));
         await ui.InvokeAsync(() =>
@@ -113,17 +120,30 @@ public sealed class UiTests
             viewModel.RunCommand.Execute(null);
         }, DispatcherPriority.Normal, cancel);
         await WaitUntil(ui, viewModel, () => viewModel.OutputText.Contains("Name? ", StringComparison.Ordinal));
+        await WaitUntil(ui, viewModel, () => 9 == viewModel.ShownFiles.Count);         // shown files arrive in order
         await ui.InvokeAsync(() => viewModel.DisconnectCommand.Execute(null), DispatcherPriority.Normal, cancel);
         await WaitUntil(ui, viewModel, () => !viewModel.IsConnected);
         await ui.InvokeAsync(() =>
         {
-            Assert.Equal(6, viewModel.Images.Count);                          // kept across runs and Clear output
-            Assert.Equal("6 of 6", viewModel.ImagePosition);
+            Assert.Equal(9, viewModel.ShownFiles.Count);                      // kept across runs and Clear output
+            Assert.Equal("9 of 9", viewModel.ShownPosition);
             ui.RunJobs();
             using var frame = window!.CaptureRenderedFrame();
             frame?.Save(Path.Combine(AppContext.BaseDirectory, "ui-images.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
-            viewModel.ClearImagesCommand.Execute(null);
-            Assert.False(viewModel.HasImages);
+            viewModel.IsSettingsOpen = true;
+            viewModel.ShownFilesKeptText = "many";                           // not a number: refused, nothing dropped
+            Assert.NotEmpty(viewModel.SettingsError);
+            Assert.Equal(9, viewModel.ShownFiles.Count);
+            viewModel.ShownFilesKeptText = "4";                              // fewer kept: the oldest are dropped
+            Assert.Empty(viewModel.SettingsError);
+            Assert.Equal("4 of 4", viewModel.ShownPosition);
+            ui.RunJobs();
+            using var settingsFrame = window!.CaptureRenderedFrame();
+            settingsFrame?.Save(Path.Combine(AppContext.BaseDirectory, "ui-settings.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+            viewModel.ResetSettingsCommand.Execute(null);
+            viewModel.IsSettingsOpen = false;
+            viewModel.ClearShownCommand.Execute(null);
+            Assert.False(viewModel.HasShownFiles);
             Assert.Null(viewModel.CurrentImage);
         }, DispatcherPriority.Normal, cancel);
         await ui.InvokeAsync(() =>

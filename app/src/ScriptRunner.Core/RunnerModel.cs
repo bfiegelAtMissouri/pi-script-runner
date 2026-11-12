@@ -71,8 +71,26 @@ public interface IRunnerConnection : IAsyncDisposable
     /// <summary>Delivers Ctrl+C to the script, then terminates it if it does not stop.</summary>
     Task StopAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Downloads a file from the run's folder, for play() and show().</summary>
-    Task<byte[]> GetFileAsync(string name, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Downloads a file for play() and show(): a name in the run's folder, or an absolute path in /tmp. Throws
+    /// <see cref="RunnerException"/> without downloading it if the file is larger than <paramref name="maxBytes"/>.
+    /// </summary>
+    Task<byte[]> GetFileAsync(string name, long maxBytes = long.MaxValue, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Messages shared by the connections.</summary>
+public static class FileSizes
+{
+    /// <summary>For example "2.4 MB" or "830 KB".</summary>
+    public static string Describe(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} bytes",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024.0):0.#} MB",
+    };
+
+    public static RunnerException TooLarge(string name, long size, long maxBytes) =>
+        new($"{name} is {Describe(size)}, larger than the {Describe(maxBytes)} limit in Settings.");
 }
 
 /// <summary>A problem to show the user, with a message written for them.</summary>

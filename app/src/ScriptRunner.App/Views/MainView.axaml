@@ -42,7 +42,57 @@
       <CheckBox IsChecked="{Binding RememberSecret}" IsVisible="{Binding CanRememberSecret}"
                 Content="Remember (secure storage)" />
       <Button Content="Forget saved SSH key" Command="{Binding ForgetHostKeyCommand}" IsVisible="{Binding IsSsh}" />
+      <ToggleButton Content="Settings" IsChecked="{Binding IsSettingsOpen}" />
     </WrapPanel>
+
+    <!-- Settings page: limits, each saved as it is changed. It takes the place of the rest of the screen while open. -->
+    <ScrollViewer DockPanel.Dock="Top" IsVisible="{Binding IsSettingsOpen}" HorizontalScrollBarVisibility="Disabled">
+    <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,8,0,0">
+      <StackPanel Spacing="6">
+        <TextBlock Text="Settings" FontWeight="SemiBold" FontSize="16" />
+        <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="10">
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Time limit per run (s)" VerticalAlignment="Center" />
+          <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding TimeLimitSeconds}" Width="110"
+                   AutomationProperties.Name="Time limit per run in seconds" />
+          <TextBlock Grid.Row="0" Grid.Column="2" Text="A run is stopped automatically after this long; 0 means no limit"
+                     VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="Files kept beside the output" VerticalAlignment="Center" />
+          <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ShownFilesKeptText}" Width="110"
+                   AutomationProperties.Name="Files kept beside the output" />
+          <TextBlock Grid.Row="1" Grid.Column="2" Text="Images and files from show(); the oldest is dropped past this"
+                     VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
+
+          <TextBlock Grid.Row="2" Grid.Column="0" Text="Largest file (MB)" VerticalAlignment="Center" />
+          <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding LargestFileMegabytesText}" Width="110"
+                   AutomationProperties.Name="Largest file in megabytes" />
+          <TextBlock Grid.Row="2" Grid.Column="2" Text="Larger files from show() and play() are not downloaded"
+                     VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
+
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="Output kept (characters)" VerticalAlignment="Center" />
+          <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding OutputCharactersKeptText}" Width="110"
+                   AutomationProperties.Name="Output kept in characters" />
+          <TextBlock Grid.Row="3" Grid.Column="2" Text="Older output is dropped past this"
+                     VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
+
+          <TextBlock Grid.Row="4" Grid.Column="0" Text="Pi command time limit (s)" VerticalAlignment="Center" />
+          <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding PiCommandSecondsText}" Width="110"
+                   AutomationProperties.Name="Pi command time limit in seconds" />
+          <TextBlock Grid.Row="4" Grid.Column="2" Text="Longest a command in the Pi command box may run (SSH mode)"
+                     VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
+        </Grid>
+        <TextBlock Text="{Binding SettingsError}" Foreground="#C62828" TextWrapping="Wrap"
+                   IsVisible="{Binding SettingsError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <WrapPanel>
+          <Button Content="Restore defaults" Command="{Binding ResetSettingsCommand}" />
+          <Button Content="Done" Command="{Binding ToggleSettingsCommand}" />
+        </WrapPanel>
+      </StackPanel>
+    </Border>
+    </ScrollViewer>
+
+    <!-- The rest of the screen, hidden while Settings is open -->
+    <DockPanel IsVisible="{Binding !IsSettingsOpen}">
 
     <!-- Files -->
     <Border DockPanel.Dock="Top" Name="DropArea" BorderBrush="Gray" BorderThickness="1" CornerRadius="6"
@@ -79,11 +129,6 @@
       <Button Content="Disconnect" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}"
               ToolTip.Tip="Close the connection to the Pi (a running script is stopped first)" />
       <Button Content="Clear output" Command="{Binding ClearCommand}" />
-      <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
-                  ToolTip.Tip="Seconds before a run is stopped automatically; 0 means no limit">
-        <TextBlock Text="Time limit (s)" VerticalAlignment="Center" />
-        <TextBox Text="{Binding TimeLimitSeconds}" Width="72" AutomationProperties.Name="Time limit in seconds" />
-      </StackPanel>
       <CheckBox IsChecked="{Binding SpeakSay}" Content="Speak say() messages" />
       <CheckBox IsChecked="{Binding SpeakAll}" Content="Speak all output" />
     </WrapPanel>
@@ -121,32 +166,48 @@
     </DockPanel>
 
     <!-- Output and images -->
-    <Grid ColumnDefinitions="*,Auto">
+    <Grid ColumnDefinitions="*,Auto" ClipToBounds="True">
       <TextBox Name="OutputBox" Grid.Column="0" Text="{Binding OutputText}" IsReadOnly="True"
                AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas, Menlo, monospace"
                Background="#10141B" Foreground="#E6EDF3"
                ScrollViewer.VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Program output" />
-      <!-- Images the script showed, one at a time, newest shown when it arrives -->
-      <Grid Grid.Column="1" Margin="8,0,0,0" Width="360" RowDefinitions="*,Auto,Auto,Auto" IsVisible="{Binding HasImages}">
+      <!-- Files the script showed, one at a time, newest shown when it arrives: pictures as pictures, other files
+           as a card with their name, size, and (for text files) their first lines -->
+      <Grid Grid.Column="1" Margin="8,0,0,0" Width="360" RowDefinitions="*,Auto,Auto,Auto" IsVisible="{Binding HasShownFiles}">
         <Image Grid.Row="0" Source="{Binding CurrentImage}" Stretch="Uniform" StretchDirection="DownOnly"
-               VerticalAlignment="Top" AutomationProperties.Name="{Binding CurrentImageName}" />
-        <TextBlock Grid.Row="1" Margin="0,4,0,0" Text="{Binding CurrentImageName}" HorizontalAlignment="Center"
-                   TextTrimming="CharacterEllipsis" />
+               VerticalAlignment="Top" AutomationProperties.Name="{Binding CurrentShownName}"
+               IsVisible="{Binding !IsCurrentCard}" />
+        <Border Grid.Row="0" IsVisible="{Binding IsCurrentCard}" BorderBrush="Gray" BorderThickness="1"
+                CornerRadius="6" Padding="10" VerticalAlignment="Top">
+          <StackPanel Spacing="6">
+            <TextBlock Text="{Binding CurrentShownName, StringFormat='📄 {0}'}" FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding CurrentShownNote}" Opacity="0.75" />
+            <ScrollViewer MaxHeight="360" HorizontalScrollBarVisibility="Auto"
+                          IsVisible="{Binding CurrentPreview, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+              <TextBlock Text="{Binding CurrentPreview}" FontFamily="Consolas, Menlo, monospace" FontSize="12"
+                         AutomationProperties.Name="Preview" />
+            </ScrollViewer>
+          </StackPanel>
+        </Border>
+        <TextBlock Grid.Row="1" Margin="0,4,0,0" Text="{Binding CurrentShownName}" HorizontalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" IsVisible="{Binding !IsCurrentCard}" />
         <Grid Grid.Row="2" Margin="0,4,0,0" ColumnDefinitions="Auto,*,Auto">
-          <Button Grid.Column="0" Content="◀" Command="{Binding PreviousImageCommand}"
-                  IsEnabled="{Binding CanShowPreviousImage}" ToolTip.Tip="Previous image"
-                  AutomationProperties.Name="Previous image" />
-          <TextBlock Grid.Column="1" Text="{Binding ImagePosition}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-          <Button Grid.Column="2" Content="▶" Command="{Binding NextImageCommand}"
-                  IsEnabled="{Binding CanShowNextImage}" ToolTip.Tip="Next image"
-                  AutomationProperties.Name="Next image" />
+          <Button Grid.Column="0" Content="◀" Command="{Binding PreviousShownCommand}"
+                  IsEnabled="{Binding CanShowPrevious}" ToolTip.Tip="Previous file"
+                  AutomationProperties.Name="Previous file" />
+          <TextBlock Grid.Column="1" Text="{Binding ShownPosition}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <Button Grid.Column="2" Content="▶" Command="{Binding NextShownCommand}"
+                  IsEnabled="{Binding CanShowNext}" ToolTip.Tip="Next file"
+                  AutomationProperties.Name="Next file" />
         </Grid>
         <WrapPanel Grid.Row="3" Margin="0,4,0,0" HorizontalAlignment="Center">
-          <Button Content="Save…" Click="OnSaveImage" ToolTip.Tip="Save this image" />
-          <Button Content="Save all…" Click="OnSaveAllImages" ToolTip.Tip="Save every image to a folder" />
-          <Button Content="Clear images" Command="{Binding ClearImagesCommand}" />
+          <Button Content="Save…" Click="OnSaveShown" ToolTip.Tip="Save this file" />
+          <Button Content="Save all…" Click="OnSaveAllShown" ToolTip.Tip="Save every file to a folder" />
+          <Button Content="Clear all" Command="{Binding ClearShownCommand}" ToolTip.Tip="Remove every file from this panel" />
         </WrapPanel>
       </Grid>
     </Grid>
+    </DockPanel>
   </DockPanel>
 </UserControl>

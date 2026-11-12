@@ -3,7 +3,7 @@
 Install Pi Script Runner as a service that starts when the Pi boots.
 
 Usage (on the Pi, from the runner folder):
-    sudo python3 install_service.py <PIN> [--port 8000] [--max-seconds 300] [--python PATH]
+    sudo python3 install_service.py <PIN> [--port 8000] [--max-seconds 300] [--max-upload-mb 20] [--python PATH]
     python3 install_service.py <PIN> --print      (show the service file only)
 
 Written in Python rather than shell so it still works if the files were
@@ -25,7 +25,7 @@ Wants=network-online.target
 [Service]
 User={user}
 WorkingDirectory={folder}
-ExecStart={python} {folder}/script_runner.py --pin {pin} --port {port} --max-seconds {max_seconds}
+ExecStart={python} {folder}/script_runner.py --pin {pin} --port {port} --max-seconds {max_seconds} --max-upload-mb {max_upload_mb}
 Restart=on-failure
 RestartSec=3
 
@@ -38,7 +38,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("pin", help="PIN students enter on the page")
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--max-seconds", type=int, default=300)
+    parser.add_argument("--max-seconds", type=int, default=300, help="default time limit per run (0 = no limit)")
+    parser.add_argument("--max-upload-mb", type=int, default=20, help="largest upload per run, in megabytes")
     parser.add_argument("--python", default="/usr/bin/python3",
                         help="Python that runs the server and the scripts, for example a virtual environment's "
                              "bin/python3 (default /usr/bin/python3)")
@@ -53,7 +54,8 @@ def main():
     if not os.path.isfile(args.python):
         sys.exit("No Python at %s." % args.python)
     service = TEMPLATE.format(user=user, folder=folder, python=args.python,
-                              pin=args.pin, port=args.port, max_seconds=args.max_seconds)
+                              pin=args.pin, port=args.port, max_seconds=args.max_seconds,
+                              max_upload_mb=args.max_upload_mb)
     if args.print:
         print(service)
         return

@@ -14,7 +14,7 @@ from runner_io import say, play, show
 | :--- | :--- |
 | `say(text)` | Speaks `text` with the browser's built-in text-to-speech |
 | `play(filename)` | Plays a sound file (`.wav`, `.mp3`, `.ogg`) |
-| `show(filename)` | Displays an image (`.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.svg`; the app does not show `.svg`) |
+| `show(filename)` | Sends any file to the page and keeps it there with a Save link: images are displayed, text files (`.csv`, `.txt`, `.json`, ...) show their first lines, and other files show their name and size |
 
 `filename` is either relative to the script's folder on the Pi (for example
 `photo.jpg`) or an absolute path in `/tmp` (for example `/tmp/photo.jpg`).
