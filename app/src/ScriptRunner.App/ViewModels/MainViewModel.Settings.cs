@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using ScriptRunner.App.Services;
 using ScriptRunner.Core;
 
 namespace ScriptRunner.App.ViewModels;
@@ -57,6 +58,12 @@ public sealed partial class MainViewModel
     /// <summary>Longest one local function call may take, in seconds.</summary>
     [ObservableProperty]
     public partial string LocalCallSecondsText { get; set; } = "";
+
+    /// <summary>Where the diagnostic log and crash reports are kept.</summary>
+    public string LogsFolder => DiagnosticLog.Folder ?? "(not available)";
+
+    /// <summary>Android keeps the app's files private, so the folder cannot be opened there; reports can be copied.</summary>
+    public bool CanOpenLogsFolder => DiagnosticLog.Folder is not null && !OperatingSystem.IsAndroid();
 
     [RelayCommand]
     private void ToggleSettings() => IsSettingsOpen = !IsSettingsOpen;

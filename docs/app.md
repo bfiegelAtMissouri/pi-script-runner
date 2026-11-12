@@ -66,6 +66,28 @@ open between runs, so use Disconnect when the connection seems stuck or before s
 stopped first: in SSH mode closing the session sends it Ctrl+C, and in HTTP mode the app asks the server to stop
 it. The next **Run** opens a new connection.
 
+### Diagnostics
+
+The app keeps a log of what it does (runs started and ended, buttons such as Stop and Disconnect, errors shown, local
+function calls) in a `logs` folder: `%APPDATA%\ScriptRunner\logs` on Windows,
+`~/Library/Application Support/ScriptRunner/logs` on macOS, and the app's private storage on Android. It never
+records passwords, PINs, typed Pi commands, or script output. Each day has its own file, and files older than 14 days
+are deleted.
+
+When something unexpected goes wrong, the app saves a crash report (`crash-*.txt`) with the error's full details and
+the most recent activity:
+
+- An error in the user interface is reported in the app, which keeps running.
+- An error on another thread that ends the app is recorded before it closes, and the app says so the next time it
+  starts.
+
+**Settings, Diagnostics** shows the folder and has **Open logs folder** (desktop) and **Copy latest report**, which
+copies the newest report (or today's log) for pasting into an email or issue.
+
+A crash inside native code (for example the graphics driver) can end the app before it can record anything. The
+operating system usually keeps its own record: on Windows, Event Viewer, Windows Logs, Application (".NET Runtime" and
+"Application Error" entries); on macOS, Console, Crash Reports (or `~/Library/Logs/DiagnosticReports`).
+
 ### Commands on the Pi (SSH mode)
 
 In SSH mode, a command box under the Run controls runs any command on the Pi and shows its output, for example
