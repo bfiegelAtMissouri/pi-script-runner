@@ -51,6 +51,7 @@ public sealed partial class MainViewModel : ViewModelBase
         Host = settings.Get("host", "");
         User = settings.Get("user", ConnectionSettings.DefaultUser);
         Port = settings.Get(PortSettingName, DefaultPort.ToString());
+        TimeLimitSeconds = settings.Get("timeLimitSeconds", ConnectionSettings.DefaultMaxSeconds.ToString());
         SpeakSay = settings.GetBool("speakSay", true);
         SpeakAll = settings.GetBool("speakAll", false);
         RememberSecret = settings.GetBool("rememberSecret", false);
@@ -89,6 +90,10 @@ public sealed partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial string Port { get; set; } = "";
+
+    /// <summary>Seconds before a run is stopped automatically; 0 means no limit.</summary>
+    [ObservableProperty]
+    public partial string TimeLimitSeconds { get; set; } = "";
 
     [ObservableProperty]
     public partial string User { get; set; } = "";
@@ -213,9 +218,14 @@ public sealed partial class MainViewModel : ViewModelBase
             ErrorText = IsSsh ? "Enter the Pi account's password." : "Enter the Pi's PIN.";
             return null;
         }
+        if (!int.TryParse(TimeLimitSeconds, out int maxSeconds) || maxSeconds is < 0 or > ConnectionSettings.LongestMaxSeconds)
+        {
+            ErrorText = $"The time limit must be a number of seconds from 0 (no limit) to {ConnectionSettings.LongestMaxSeconds}.";
+            return null;
+        }
         SaveSettings();
         return new ConnectionSettings(IsSsh ? ConnectionMode.Ssh : ConnectionMode.Http,
-            Host.Trim(), port, User.Trim(), Secret);
+            Host.Trim(), port, User.Trim(), Secret, maxSeconds);
     }
 
     [RelayCommand]
@@ -636,6 +646,7 @@ public sealed partial class MainViewModel : ViewModelBase
         settings.Set("host", Host.Trim());
         settings.Set("user", User.Trim());
         settings.Set(PortSettingName, Port.Trim());
+        settings.Set("timeLimitSeconds", TimeLimitSeconds.Trim());
     }
 
     private void LoadRememberedSecret()

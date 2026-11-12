@@ -25,6 +25,7 @@ public sealed class SshRunnerConnection : IRunnerConnection
     private const string ShimName = "_script_runner_shim.py";
     private const string RunScriptName = "_script_runner_run.sh";
     private const string HelperName = "runner_io.py";
+    private const string RobotApiName = "robot_api.py";    // uploaded unless the user adds their own copy
     private const string SharedMediaDirectory = "/tmp/";      // play() and show() may also use files here
     private const string StartMarker = "@@runner-ssh-start\n";
     private const string ExitMarker = "@@runner-ssh-exit ";
@@ -75,6 +76,10 @@ public sealed class SshRunnerConnection : IRunnerConnection
                 }
             }
             Upload(HelperName, ReadResource(HelperName));
+            if (!files.Any(file => RobotApiName == SafeFileName(file.Name)))
+            {
+                Upload(RobotApiName, ReadResource(RobotApiName));
+            }
             Upload(ShimName, ReadResource(ShimName));
             Upload(RunScriptName, Encoding.UTF8.GetBytes(RunScript(main)));
         }
@@ -332,6 +337,11 @@ public sealed class SshRunnerConnection : IRunnerConnection
     private void StartTimeLimit()
     {
         runTimer?.Dispose();
+        runTimer = null;
+        if (0 == settings.MaxSeconds)
+        {
+            return;                                       // no limit
+        }
         runTimer = new CancellationTokenSource();
         CancellationToken token = runTimer.Token;
         _ = Task.Run(async () =>

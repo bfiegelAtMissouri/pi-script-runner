@@ -43,7 +43,8 @@ finally:
 
 If the script does not stop within 3 seconds, the runner ends it, and then
 forces it to quit if needed. A script is also stopped automatically when it
-reaches the time limit (300 seconds unless your instructor changed it).
+reaches the time limit: the **Time limit (s)** box beside Run (0 means no limit), or
+the Pi's default of 300 seconds when the box is blank.
 
 Only one script can run on a Pi at a time. If someone else's script is running,
 the page says so and Run is refused until it finishes.
@@ -85,18 +86,19 @@ cleans up when you press Stop (motors off, camera closed, sensors stopped).
 | `sensors/camera_photo.py` | Taking a photo and showing it | Pi camera |
 | `sensors/camera_dominant_color.py` | Showing a photo and saying whether red, green, or blue is strongest in it | Pi camera, numpy |
 | `showcase/explorer.py` | A mission using everything at once: explores while avoiding obstacles, photographs each obstacle, watches the floor for a target color, turns on its headlights in the dark, shows its state on the OLED and with its lights, and gives a spoken summary | Sphero RVR+, Pi camera, Qwiic VL53L1X, Qwiic OLED |
-| `robot_api/sensor_check.py` | The Robot API: reading the distance and ambient light and showing the distance on the OLED (add `robot_api.py` with it) | Sphero RVR, Qwiic VL53L1X, Qwiic OLED |
-| `robot_api/square_tour.py` | The Robot API: driving a square with colored lights, then at each corner reading the floor color and distance, showing a photo, and saying what it found (add `robot_api.py` with it) | Sphero RVR+, Pi camera, Qwiic VL53L1X, Qwiic OLED |
+| `robot_api/sensor_check.py` | The Robot API: reading the distance and ambient light and showing the distance on the OLED | Sphero RVR, Qwiic VL53L1X, Qwiic OLED |
+| `robot_api/square_tour.py` | The Robot API: driving a square with colored lights, then at each corner reading the floor color and distance, showing a photo, and saying what it found | Sphero RVR+, Pi camera, Qwiic VL53L1X, Qwiic OLED |
 
 The robot examples time their drives with their own loop rather than the SDK's `drive_forward_seconds`, whose
 timer can fail to stop when a drive starts within a few seconds of the end of a minute.
 
 ### The Robot API
 
-`robot_api/robot_api.py` wraps the robot's hardware in one `Robot` class with simple commands (`drive`, `stop`,
+`robot_api.py` wraps the robot's hardware in one `Robot` class with simple commands (`drive`, `stop`,
 `set_all_led`, `set_individual_led`, `read_distance`, `read_ambient_light`, `read_floor_color_name`,
 `setOLED_two_lines`, `take_picture`, `cleanup`), so student scripts do not call the Sphero SDK or the sensor
-libraries directly. Add `robot_api.py` together with the student's script; both are copied to the Pi for each run.
+libraries directly. Like `runner_io`, it is provided to every script, so students add only their own files. To try
+a changed version, add that `robot_api.py` with the script; it is used instead of the provided one.
 `Robot(simulation=True)` runs a script without hardware, printing what the robot would do and asking for sensor
 values.
 

@@ -38,7 +38,9 @@ the app cannot reach the Pi.
 5. **Stop** (or the Esc key on the desktop) sends Ctrl+C to the script, so its `finally:` block runs. If the script
    does not stop within 3 seconds it is terminated, and then forced to quit if needed.
 
-Each run is stopped automatically after 300 seconds. If a script cannot be confirmed stopped after the last
+Each run is stopped automatically after the **Time limit (s)** beside the Run button: 300 seconds unless you change
+it, or 0 for no limit. The setting is remembered and applies in both modes. If a script cannot be confirmed stopped
+after the last
 step, the app stops waiting for it and says so, rather than staying in "Stopping".
 
 **Disconnect** closes the app's connection to the Pi and returns the app to Ready. The app keeps its connection
@@ -61,7 +63,8 @@ previous session is stuck.
 ### Speech, sound, and images
 
 Scripts use the same `runner_io` functions as with the browser page ([runner-io.md](runner-io.md)). In SSH mode the
-app copies `runner_io.py` next to the script on every run, so nothing needs to be installed on the Pi.
+app copies `runner_io.py` and `robot_api.py` next to the script on every run, so nothing needs to be installed on
+the Pi.
 
 | Function | App behavior |
 | :--- | :--- |
@@ -117,7 +120,7 @@ To stop the warning:
 For people maintaining the Pis:
 
 - Files are copied with SFTP to `~/script_runner_ssh/run` (replaced on every run), with two helper files:
-  `runner_io.py` and `_script_runner_shim.py`.
+  `runner_io.py`, `robot_api.py` (unless the user added their own), and `_script_runner_shim.py`.
 - The script runs as `python3 -u` in a terminal session (so `input()` works) under `flock` on
   `/tmp/pi-script-runner.lock`. The runner server takes the same lock, so a script started from the app and
   one started from the browser page never run at the same time.

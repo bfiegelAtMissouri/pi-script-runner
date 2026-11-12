@@ -20,9 +20,11 @@ public sealed class HttpRunnerConnection : IRunnerConnection
     private int nextSeq;
     private volatile bool running;
     private bool stopRequested;
+    private readonly int maxSeconds;
 
     public HttpRunnerConnection(ConnectionSettings settings, HttpMessageHandler? handler = null)
     {
+        maxSeconds = settings.MaxSeconds;
         http = handler is null ? new HttpClient() : new HttpClient(handler);
         http.BaseAddress = new Uri($"http://{FormatHost(settings.Host)}:{settings.Port}/");
         http.Timeout = Timeout.InfiniteTimeSpan;           // the event stream stays open for the whole run
@@ -44,7 +46,7 @@ public sealed class HttpRunnerConnection : IRunnerConnection
                 ["data"] = Convert.ToBase64String(file.Data),
             });
         }
-        var body = new JsonObject { ["files"] = fileArray, ["main"] = mainFile };
+        var body = new JsonObject { ["files"] = fileArray, ["main"] = mainFile, ["max_seconds"] = maxSeconds };
         JsonNode reply = await PostAsync("api/run", body, cancellationToken).ConfigureAwait(false);
 
         runId = reply["run"]?.GetValue<string>() ?? throw new RunnerException("The Pi gave an unexpected reply.");

@@ -73,6 +73,9 @@
     <div class="row">
       <label for="pin">PIN</label>
       <input id="pin" type="password" inputmode="numeric" autocomplete="off" size="8">
+      <label for="timeLimit">Time limit (s)</label>
+      <input id="timeLimit" type="number" min="0" step="1" size="6" placeholder="default"
+             title="Seconds before a run is stopped automatically; 0 means no limit; blank uses the Pi's default">
       <label><input id="speakSay" type="checkbox" checked> Speak say() messages</label>
       <label><input id="speakAll" type="checkbox"> Speak all output</label>
     </div>
@@ -126,6 +129,9 @@
   function save(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
   pinEl.value = load("script_runner_pin");
   pinEl.addEventListener("change", function () { save("script_runner_pin", pinEl.value); });
+  var timeLimitEl = el("timeLimit");
+  timeLimitEl.value = load("script_runner_time_limit");
+  timeLimitEl.addEventListener("change", function () { save("script_runner_time_limit", timeLimitEl.value); });
 
   function pin() { return pinEl.value.trim(); }
   function showMessage(text) { messageEl.textContent = text || ""; }
@@ -220,7 +226,10 @@
     Promise.all(names.map(function (n) { return readBase64(files[n]); }))
       .then(function (datas) {
         var payload = names.map(function (n, i) { return { name: n, data: datas[i] }; });
-        return post("/api/run", { files: payload, main: mainName });
+        var body = { files: payload, main: mainName };
+        var limit = timeLimitEl.value.trim();
+        if ("" !== limit) { body.max_seconds = parseInt(limit, 10); }
+        return post("/api/run", body);
       })
       .then(function (data) {
         resetOutput();

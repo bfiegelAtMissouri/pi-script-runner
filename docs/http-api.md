@@ -31,9 +31,13 @@ Uploads files and starts a script. Body:
     {"name": "square.py", "data": "<base64>"},
     {"name": "beep.wav",  "data": "<base64>"}
   ],
-  "main": "square.py"
+  "main": "square.py",
+  "max_seconds": 600
 }
 ```
+
+`max_seconds` is optional: the run's time limit in seconds, from 0 (no limit) to 86400. Without it, the run uses
+the server's `--max-seconds` default.
 
 | Response | Meaning |
 | :--- | :--- |

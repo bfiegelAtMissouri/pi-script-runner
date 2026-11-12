@@ -99,6 +99,85 @@ public sealed class ConnectionTests
     }
 
     [Fact]
+    public async Task HttpProvidesRobotApi()
+    {
+        string? python = FindPython();
+        Assert.SkipWhen(python is null, "python3 is not installed");
+        using var server = PiServer.Start(python!, TestPin);
+        var settings = new ConnectionSettings(ConnectionMode.Http, "127.0.0.1", server.Port, "", TestPin);
+        await using var connection = new HttpRunnerConnection(settings);
+        await CheckRobotApiAsync(connection);
+    }
+
+    [Fact]
+    public async Task SshProvidesRobotApi()
+    {
+        ConnectionSettings? settings = SshSettings();
+        Assert.SkipWhen(settings is null, "SCRIPT_RUNNER_TEST_SSH_* environment variables are not set");
+        await using var connection = new SshRunnerConnection(settings!, new MemoryHostKeys());
+        await CheckRobotApiAsync(connection);
+    }
+
+    /// <summary>robot_api.py is importable without adding it, and a copy added with the script is used instead.</summary>
+    private static async Task CheckRobotApiAsync(IRunnerConnection connection)
+    {
+        CancellationToken cancel = TestContext.Current.CancellationToken;
+        const string where = "import importlib.util, os\n" +
+                             "spec = importlib.util.find_spec('robot_api')\n" +
+                             "print('ROBOT_API', 'local' if os.path.dirname(spec.origin) == os.getcwd() else 'provided', " +
+                             "'own' if 'OWN COPY' in open(spec.origin).read() else 'standard')\n";
+
+        var log = new EventLog(connection);
+        await connection.StartAsync(new[] { Script("where.py", where) }, "where.py", cancel);
+        await log.WaitForExitAsync(TimeSpan.FromSeconds(15));
+        Assert.Contains("ROBOT_API", log.Output, StringComparison.Ordinal);
+        Assert.Contains("standard", log.Output, StringComparison.Ordinal);
+
+        log = new EventLog(connection);
+        await connection.StartAsync(new[] { Script("where.py", where), Script("robot_api.py", "# OWN COPY\n") }, "where.py", cancel);
+        await log.WaitForExitAsync(TimeSpan.FromSeconds(15));
+        Assert.Contains("ROBOT_API local own", log.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task HttpTimeLimitFromTheAppStopsTheScript()
+    {
+        string? python = FindPython();
+        Assert.SkipWhen(python is null, "python3 is not installed");
+        using var server = PiServer.Start(python!, TestPin);           // the server's own default is 300 s
+        var settings = new ConnectionSettings(ConnectionMode.Http, "127.0.0.1", server.Port, "", TestPin, MaxSeconds: 2);
+        await using var connection = new HttpRunnerConnection(settings);
+        var log = new EventLog(connection);
+        await connection.StartAsync(new[]
+        {
+            Script("loop.py", "import time\ntry:\n    while True:\n        time.sleep(0.2)\nfinally:\n    print('FINALLY ran')\n"),
+        }, "loop.py", TestContext.Current.CancellationToken);
+        ExitedEvent exited = await log.WaitForExitAsync(TimeSpan.FromSeconds(15));
+        Assert.True(exited.Stopped);
+        Assert.Contains("Time limit of 2 s", log.Notices, StringComparison.Ordinal);
+        Assert.Contains("FINALLY ran", log.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SshNoTimeLimitWhenZero()
+    {
+        ConnectionSettings? settings = SshSettings();
+        Assert.SkipWhen(settings is null, "SCRIPT_RUNNER_TEST_SSH_* environment variables are not set");
+        await using var connection = new SshRunnerConnection(settings! with { MaxSeconds = 0 }, new MemoryHostKeys());
+        var log = new EventLog(connection);
+        await connection.StartAsync(new[]
+        {
+            Script("loop.py", "import time\nprint('looping', flush=True)\nwhile True:\n    time.sleep(0.2)\n"),
+        }, "loop.py", TestContext.Current.CancellationToken);
+        await log.WaitForOutputAsync("looping");
+        await Task.Delay(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
+        Assert.True(connection.IsRunning);
+        Assert.DoesNotContain("Time limit", log.Notices, StringComparison.Ordinal);
+        await connection.StopAsync(TestContext.Current.CancellationToken);
+        await log.WaitForExitAsync(TimeSpan.FromSeconds(15));
+    }
+
+    [Fact]
     public async Task SshTimeLimitStopsTheScript()
     {
         ConnectionSettings? settings = SshSettings();

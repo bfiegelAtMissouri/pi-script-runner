@@ -79,6 +79,11 @@
       <Button Content="Disconnect" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}"
               ToolTip.Tip="Close the connection to the Pi (a running script is stopped first)" />
       <Button Content="Clear output" Command="{Binding ClearCommand}" />
+      <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+                  ToolTip.Tip="Seconds before a run is stopped automatically; 0 means no limit">
+        <TextBlock Text="Time limit (s)" VerticalAlignment="Center" />
+        <TextBox Text="{Binding TimeLimitSeconds}" Width="72" AutomationProperties.Name="Time limit in seconds" />
+      </StackPanel>
       <CheckBox IsChecked="{Binding SpeakSay}" Content="Speak say() messages" />
       <CheckBox IsChecked="{Binding SpeakAll}" Content="Speak all output" />
     </WrapPanel>

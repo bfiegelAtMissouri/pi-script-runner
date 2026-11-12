@@ -22,6 +22,9 @@ public sealed record ConnectionSettings(
     public const int DefaultHttpPort = 8000;
     public const int DefaultSshPort = 22;
     public const int DefaultMaxSeconds = 300;
+
+    /// <summary>Longest time limit that can be set; 0 means no limit.</summary>
+    public const int LongestMaxSeconds = 24 * 60 * 60;
     public const string DefaultUser = "pi";
 
     /// <summary>Never include the secret when settings are printed or logged.</summary>

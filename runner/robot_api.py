@@ -4,8 +4,9 @@ Student-friendly hardware interface for Sphero RVR robots.
 Students import Robot from this file rather than calling the Sphero SDK or the
 VL53L1X library directly. Keep this file instructor-managed.
 
-To use it from the app or the browser page, add this file together with the
-student's script; both are copied to the Pi for each run.
+The runner provides this file to every script, the same way it provides
+runner_io.py, so students only add their own script. A robot_api.py added
+together with a script is used instead, for trying a changed version.
 
     from robot_api import Robot
 

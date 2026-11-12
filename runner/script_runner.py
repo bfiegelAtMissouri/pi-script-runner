@@ -30,6 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+MAX_TIME_LIMIT_SECONDS = 24 * 60 * 60    # longest time limit a run may ask for
 RUN_ROOT = os.path.join(os.path.expanduser("~"), "script_runner_runs")
 # play() and show() may also use files here, for scripts that save their photos and sounds in /tmp.
 SHARED_MEDIA_DIR = "/tmp"
@@ -97,6 +98,7 @@ class Run:
         self.finished = False
         self.stop_requested = False
         self.lock_handle = None
+        self.max_seconds = 0              # time limit for this run; 0 means no limit
 
     def add_event(self, event):
         with self.cond:
@@ -135,7 +137,7 @@ class Runner:
     def is_busy(self):
         return self.current is not None and not self.current.finished
 
-    def start(self, files, main_name):
+    def start(self, files, main_name, max_seconds=None):
         with self.lock:
             if self.is_busy():
                 return None, "A script is already running on this Pi. Stop it first."
@@ -153,6 +155,7 @@ class Runner:
                     handle.write(data)
             run = Run(run_id, run_dir, main_name)
             run.lock_handle = lock_handle
+            run.max_seconds = self.max_seconds if max_seconds is None else max_seconds
             self.current = run
 
         env = dict(os.environ)
@@ -174,7 +177,7 @@ class Runner:
             return run, None
 
         run.add_event({"type": "status", "state": "running", "file": main_name,
-                       "max_seconds": self.max_seconds})
+                       "max_seconds": run.max_seconds})
         threading.Thread(target=self._pump_output, args=(run,), daemon=True).start()
         threading.Thread(target=self._watch_time_limit, args=(run,), daemon=True).start()
         return run, None
@@ -195,11 +198,13 @@ class Runner:
         run.add_event({"type": "status", "state": "exited", "code": code, "reason": reason})
 
     def _watch_time_limit(self, run):
-        deadline = time.monotonic() + self.max_seconds
+        if 0 == run.max_seconds:
+            return                                  # no limit for this run
+        deadline = time.monotonic() + run.max_seconds
         while not run.finished:
             if deadline <= time.monotonic():
                 run.add_event({"type": "notice",
-                               "text": "Time limit of %d s reached; stopping the script." % self.max_seconds})
+                               "text": "Time limit of %d s reached; stopping the script." % run.max_seconds})
                 self.stop(run)
                 return
             time.sleep(0.5)
@@ -341,7 +346,14 @@ class Handler(BaseHTTPRequestHandler):
         if not main_name.endswith(".py") or main_name not in [name for name, _ in files]:
             self._json(400, {"error": "Include the .py file to run."})
             return
-        run, error = self.runner.start(files, main_name)
+        max_seconds = body.get("max_seconds")
+        if max_seconds is not None:
+            if not isinstance(max_seconds, int) or isinstance(max_seconds, bool) \
+                    or not 0 <= max_seconds <= MAX_TIME_LIMIT_SECONDS:
+                self._json(400, {"error": "max_seconds must be a whole number from 0 (no limit) to %d."
+                                          % MAX_TIME_LIMIT_SECONDS})
+                return
+        run, error = self.runner.start(files, main_name, max_seconds)
         if error:
             self._json(409, {"error": error})
         else:
@@ -419,7 +431,8 @@ def main():
     parser = argparse.ArgumentParser(description="Run Python scripts on this Pi from a browser.")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--pin", default="", help="PIN students must enter (blank = no PIN)")
-    parser.add_argument("--max-seconds", type=int, default=300, help="time limit per run")
+    parser.add_argument("--max-seconds", type=int, default=300,
+                        help="default time limit per run, in seconds (0 = no limit); a run may ask for its own")
     args = parser.parse_args()
 
     os.makedirs(RUN_ROOT, exist_ok=True)

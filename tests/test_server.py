@@ -125,6 +125,10 @@ class ServerTests(unittest.TestCase):
                     events.append(json.loads(line[6:]))
 
     @staticmethod
+    def started_event(events):
+        return next(e for e in events if "status" == e["type"] and "running" == e.get("state"))
+
+    @staticmethod
     def text(events):
         return "".join(e.get("text", "") for e in events if e["type"] in ("out", "echo", "notice"))
 
@@ -205,6 +209,38 @@ class ServerTests(unittest.TestCase):
         self.assertIn("terminating", output)
         self.assertEqual("exited", events[-1]["state"])
         self.assertLess(time.monotonic() - started, MAX_SECONDS + 10)
+
+    def test_time_limit_per_run(self):
+        """A run can ask for its own time limit: shorter than the default, none (0), or an invalid value."""
+        status, body = self.post("/api/run", {"files": [encode("a.py", "print(1)")], "main": "a.py",
+                                              "max_seconds": -1})
+        self.assertEqual(400, status, body)
+
+        loop = "import time\nprint('looping', flush=True)\nwhile True:\n    time.sleep(0.2)\n"
+        started = time.monotonic()
+        status, body = self.post("/api/run", {"files": [encode("loop.py", loop)], "main": "loop.py",
+                                              "max_seconds": 1})
+        self.assertEqual(200, status, body)
+        events = []
+        thread = threading.Thread(target=self.collect, args=(body["run"], events), daemon=True)
+        thread.start()
+        thread.join(10)
+        self.assertIn("Time limit of 1 s", self.text(events))
+        self.assertEqual(1, self.started_event(events)["max_seconds"])
+        self.assertLess(time.monotonic() - started, MAX_SECONDS)       # sooner than the server's default
+
+        status, body = self.post("/api/run", {"files": [encode("loop.py", loop)], "main": "loop.py",
+                                              "max_seconds": 0})
+        self.assertEqual(200, status, body)
+        events = []
+        thread = threading.Thread(target=self.collect, args=(body["run"], events), daemon=True)
+        thread.start()
+        self.wait_for(events, "looping")
+        time.sleep(MAX_SECONDS + 1)                                      # past the server's default
+        self.assertNotIn("Time limit", self.text(events))
+        self.assertEqual(0, self.started_event(events)["max_seconds"])
+        self.assertEqual(200, self.post("/api/stop", {})[0])
+        thread.join(15)
 
 
 if "__main__" == __name__:

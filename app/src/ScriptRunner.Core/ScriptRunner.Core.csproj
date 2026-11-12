@@ -13,8 +13,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- SSH mode uploads these next to the user's script. runner_io.py is the same file the Pi server uses. -->
+    <!-- SSH mode uploads these next to the user's script. runner_io.py and robot_api.py are the same files the Pi
+         server provides. -->
     <EmbeddedResource Include="..\..\..\runner\runner_io.py" LogicalName="runner_io.py" />
+    <EmbeddedResource Include="..\..\..\runner\robot_api.py" LogicalName="robot_api.py" />
     <EmbeddedResource Include="Remote\_script_runner_shim.py" LogicalName="_script_runner_shim.py" />
   </ItemGroup>
 
