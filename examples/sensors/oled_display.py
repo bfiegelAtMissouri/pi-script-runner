@@ -8,14 +8,12 @@ import time
 
 import qwiic_oled_display
 
-OLED_ADDRESS = 0x3C
 FIRST_LINE_Y = 0
 SECOND_LINE_Y = 12             # pixels down; the screen is 32 pixels tall
 SMALL_FONT = 0
 MOUNTED_UPSIDE_DOWN = True     # set to False if the text appears upside down
 
-oled = qwiic_oled_display.QwiicOledDisplay(address=OLED_ADDRESS)
-
+oled = qwiic_oled_display.QwiicOledDisplay()
 
 def show_lines(first_line, second_line):
     """
@@ -36,6 +34,9 @@ if '__main__' == __name__:
     oled.set_font_type(SMALL_FONT)
     oled.flip_vertical(MOUNTED_UPSIDE_DOWN)
     oled.flip_horizontal(MOUNTED_UPSIDE_DOWN)
+    oled.clear(oled.PAGE)
+    oled.display()
+
     try:
         count = 0
         while True:
