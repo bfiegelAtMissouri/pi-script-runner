@@ -99,6 +99,15 @@
           <TextBlock Grid.Row="7" Grid.Column="2" Text="Longest one remote_execute() call may take on the laptop"
                      VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
         </Grid>
+        <TextBlock Text="Diagnostics" FontWeight="SemiBold" Margin="0,8,0,0" />
+        <TextBlock TextWrapping="Wrap" Opacity="0.75"
+                   Text="The app keeps a log of what it does (never passwords, PINs, or script output) and saves a report when something unexpected goes wrong. Send the report with a description of what happened." />
+        <SelectableTextBlock Text="{Binding LogsFolder}" FontFamily="Consolas, Menlo, monospace" TextWrapping="Wrap" />
+        <WrapPanel>
+          <Button Content="Open logs folder" Click="OnOpenLogsFolder" IsVisible="{Binding CanOpenLogsFolder}" />
+          <Button Content="Copy latest report" Click="OnCopyLatestReport"
+                  ToolTip.Tip="Copies the newest crash report, or today's log if there is none, for pasting into an email" />
+        </WrapPanel>
         <TextBlock Text="{Binding SettingsError}" Foreground="#C62828" TextWrapping="Wrap"
                    IsVisible="{Binding SettingsError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         <WrapPanel>

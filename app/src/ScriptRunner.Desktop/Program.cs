@@ -10,6 +10,7 @@ internal static class Program
     public static void Main(string[] args)
     {
         App.App.Platform = DesktopPlatform.Create();
+        App.App.InstallErrorHandling(App.App.Platform.SettingsFolder);
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 

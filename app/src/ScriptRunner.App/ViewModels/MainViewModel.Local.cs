@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using ScriptRunner.App.Services;
 using ScriptRunner.Core;
 
 namespace ScriptRunner.App.ViewModels;
@@ -38,6 +39,7 @@ public sealed partial class MainViewModel
         localFunctions = await LocalFunctions.StartAsync(python, localFiles,
             printed => ui.Post(() => { Append("[local] " + printed + "\n"); ShowOutput(); }),
             TimeSpan.FromSeconds(localLoadSeconds), TimeSpan.FromSeconds(localCallSeconds));
+        DiagnosticLog.Write($"Local functions loaded with {python}: {string.Join(", ", localFunctions.Functions)}");
         Append("[Local functions: " + (0 < localFunctions.Functions.Count ? string.Join(", ", localFunctions.Functions) : "none") + "]\n");
         ShowOutput();
     }
@@ -89,6 +91,8 @@ public sealed partial class MainViewModel
             reply = LocalFunctions.Failure(id, "The local function call could not be completed: " + error.Message);
         }
 
+        DiagnosticLog.Write($"Local call {id}: " + (reply["ok"]?.GetValue<bool>() is true ? "answered"
+            : "failed: " + reply["error"]?.GetValue<string>()?.Split('\n').LastOrDefault()));
         try
         {
             await source.SendReplyAsync(reply.ToJsonString());

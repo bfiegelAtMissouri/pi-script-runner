@@ -63,6 +63,22 @@ public sealed partial class MainViewModel : ViewModelBase
         RememberSecret = settings.GetBool("rememberSecret", false);
         LoadRememberedSecret();
         StatusText = "Ready";
+        DiagnosticLog.ErrorRecorded += OnErrorRecorded;
+        if (DiagnosticLog.TakeUnseenReport() is { } report)
+        {
+            ErrorText = "The app hit an unexpected error last time (it may have closed). A report was saved: " +
+                        $"{report}. Settings, Diagnostics can copy it.";
+        }
+    }
+
+    private void OnErrorRecorded(string message) => ui.Post(() => ErrorText = message);
+
+    partial void OnErrorTextChanged(string value)
+    {
+        if (0 < value.Length)
+        {
+            DiagnosticLog.Write("Error shown: " + value);
+        }
     }
 
     public static string Title { get; } = "Script Runner " + (Assembly.GetEntryAssembly() ?? typeof(MainViewModel).Assembly)
@@ -282,6 +298,8 @@ public sealed partial class MainViewModel : ViewModelBase
             StatusText = "Connecting…";
             IsRunning = true;
             List<RunFile> files = Files.Where(f => !f.IsLocal).Select(f => new RunFile(f.Name, f.Data)).ToList();
+            DiagnosticLog.Write($"Run {SelectedScript}: {wanted}, {files.Count} Pi files, " +
+                                $"{Files.Count(f => f.IsLocal)} local files, time limit {wanted.MaxSeconds} s");
             await StartLocalFunctionsAsync(Files.Where(f => f.IsLocal).Select(f => new RunFile(f.Name, f.Data)).ToList());
             StatusText = "Connecting…";
             await connection.StartAsync(files, SelectedScript!);
@@ -299,6 +317,7 @@ public sealed partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private async Task StopAsync()
     {
+        DiagnosticLog.Write("Stop pressed");
         platform.Speech.StopSpeaking();
         if (connection is null || !IsRunning)
         {
@@ -358,6 +377,7 @@ public sealed partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private async Task ForceStopAsync()
     {
+        DiagnosticLog.Write("Force stop all Python pressed");
         platform.Speech.StopSpeaking();
         await RunOnPiAsync("Force stop all Python", PiCommand.ForceStopAllPython);
         if (IsRunning)
@@ -385,6 +405,7 @@ public sealed partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private async Task DisconnectAsync()
     {
+        DiagnosticLog.Write("Disconnect pressed");
         if (connection is null)
         {
             return;
@@ -415,6 +436,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private async Task RunOnPiAsync(string title, string command)
     {
+        DiagnosticLog.Write("Pi command: " + (title.StartsWith('$') ? "(typed command)" : title));   // typed text may hold a password
         ConnectionSettings? target = ReadSettings();
         if (target is null)
         {
@@ -461,7 +483,28 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>Closes the connection when the app closes; a running script receives Ctrl+C.</summary>
-    public Task ShutdownAsync() => CloseConnectionAsync();
+    public Task ShutdownAsync()
+    {
+        DiagnosticLog.ErrorRecorded -= OnErrorRecorded;
+        return CloseConnectionAsync();
+    }
+
+    /// <summary>Records the run's milestones in the diagnostic log (not its output, which stays private).</summary>
+    private static void LogRunnerEvent(RunnerEvent runnerEvent)
+    {
+        string? text = runnerEvent switch
+        {
+            StartedEvent started => "Started " + started.FileName,
+            NoticeEvent notice => "Notice: " + notice.Text,
+            ExitedEvent exited => $"Exited: code {exited.Code?.ToString() ?? "none"}, stopped {exited.Stopped}" +
+                                  (exited.Message is null ? "" : ", " + exited.Message),
+            _ => null,
+        };
+        if (text is not null)
+        {
+            DiagnosticLog.Write(text);
+        }
+    }
 
     partial void OnSelectedModeIndexChanged(int value)
     {
@@ -484,6 +527,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private void OnRunnerEvent(RunnerEvent runnerEvent)
     {
+        LogRunnerEvent(runnerEvent);
         switch (runnerEvent)
         {
             case OutputEvent output:
@@ -567,6 +611,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception error) when (error is RunnerException or IOException or InvalidOperationException)
         {
+            DiagnosticLog.Write($"play({fileName}) failed: {error.GetType().Name}: {error.Message}");
             ui.Post(() => { Append($"[Could not play {fileName}: {error.Message}]\n"); ShowOutput(); });
         }
     }
@@ -585,6 +630,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception error)
         {
+            DiagnosticLog.Write($"show({fileName}) failed: {error.GetType().Name}: {error.Message}");
             ui.Post(() => { Append($"[Could not show {fileName}: {error.Message}]\n"); ShowOutput(); });
         }
     }

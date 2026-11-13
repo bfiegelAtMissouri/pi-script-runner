@@ -1,7 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using ScriptRunner.App.Services;
 using ScriptRunner.App.ViewModels;
 
 namespace ScriptRunner.App.Views;
@@ -139,5 +141,38 @@ public partial class MainView : UserControl
         await using Stream stream = await file.OpenWriteAsync();
         stream.SetLength(0);
         await stream.WriteAsync(data);
+    }
+
+    private async void OnOpenLogsFolder(object? sender, RoutedEventArgs e)
+    {
+        TopLevel? top = TopLevel.GetTopLevel(this);
+        if (top is null || DiagnosticLog.Folder is null)
+        {
+            return;
+        }
+        if (!await top.Launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(DiagnosticLog.Folder)))
+        {
+            ViewModel.SettingsError = "Could not open the folder. Its path is shown above.";
+        }
+    }
+
+    /// <summary>Copies the newest crash report, or today's log when there is no report, to the clipboard.</summary>
+    private async void OnCopyLatestReport(object? sender, RoutedEventArgs e)
+    {
+        TopLevel? top = TopLevel.GetTopLevel(this);
+        string? folder = DiagnosticLog.Folder;
+        if (top?.Clipboard is null || folder is null)
+        {
+            return;
+        }
+        string? file = DiagnosticLog.LatestReport() ?? Directory.GetFiles(folder, "app-*.log").OrderBy(f => f, StringComparer.Ordinal).LastOrDefault();
+        if (file is null)
+        {
+            ViewModel.SettingsError = "There is no report or log yet.";
+            return;
+        }
+        await top.Clipboard.SetTextAsync(await File.ReadAllTextAsync(file));
+        ViewModel.SettingsError = "";
+        ViewModel.StatusText = "Copied " + Path.GetFileName(file);
     }
 }
