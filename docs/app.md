@@ -33,7 +33,9 @@ the app cannot reach the Pi.
    for HTTP); change it only if your Pi uses a different one.
 2. For SSH, enter the user name (normally `pi`) and the account's password. For HTTP, enter the runner's PIN.
 3. **Add files…** (or drag files onto the box on the desktop): the `.py` file plus any sound or image files it uses.
-   If you add more than one `.py` file, choose which one runs in the **Run:** list.
+   If you add more than one `.py` file, choose which one runs in the **Run:** list. When there are many files, the
+   list scrolls instead of pushing the output down; drag the bar under it to make it taller or shorter (at most two
+   thirds of the window). The app remembers the height, and **Restore defaults** in **Settings** resets it.
 4. Press **Run**. Type input for `input()` in the box at the bottom and press Enter.
 5. **Stop** (or the Esc key on the desktop) sends Ctrl+C to the script, so its `finally:` block runs. If the script
    does not stop within 3 seconds it is terminated, and then forced to quit if needed.

@@ -21,9 +21,75 @@ public partial class MainView : UserControl
                 OutputBox.CaretIndex = OutputBox.Text?.Length ?? 0;     // keep the newest output in view
             }
         };
+        SizeChanged += (_, _) => FitFileList();
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is MainViewModel model)
+            {
+                model.PropertyChanged += (_, e) =>
+                {
+                    if (nameof(MainViewModel.FileListHeight) == e.PropertyName)
+                    {
+                        FitFileList();
+                    }
+                };
+                FitFileList();
+            }
+        };
+    }
+
+    /// <summary>Applies the chosen file list height, kept to two thirds of the screen when the screen is smaller.</summary>
+    private void FitFileList()
+    {
+        if (DataContext is MainViewModel model)
+        {
+            FileListScroll.MaxHeight = FileListHeightFor(model.FileListHeight);
+        }
     }
 
     private MainViewModel ViewModel => (MainViewModel)DataContext!;
+
+    /// <summary>While the file list's handle is dragged: where the pointer started and how tall the list was then.</summary>
+    private (double PointerY, double ListHeight)? fileListDrag;
+
+    private void OnFileListGripPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+        fileListDrag = (e.GetPosition(this).Y, FileListScroll.Bounds.Height);
+        e.Pointer.Capture(FileListGrip);
+        e.Handled = true;
+    }
+
+    private void OnFileListGripMoved(object? sender, PointerEventArgs e)
+    {
+        if (fileListDrag is { } drag)
+        {
+            ViewModel.FileListHeight = FileListHeightFor(drag.ListHeight + e.GetPosition(this).Y - drag.PointerY);
+        }
+    }
+
+    private void OnFileListGripReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        fileListDrag = null;
+        e.Pointer.Capture(null);
+    }
+
+    private void OnFileListGripCaptureLost(object? sender, PointerCaptureLostEventArgs e) => fileListDrag = null;
+
+    /// <summary>
+    /// A file list height kept between the smallest useful one and two thirds of the screen, so the output always has
+    /// room.
+    /// </summary>
+    private double FileListHeightFor(double wanted)
+    {
+        double tallest = 0 < Bounds.Height
+            ? Math.Max(MainViewModel.SmallestFileListHeight, Bounds.Height * 2 / 3)
+            : double.PositiveInfinity;          // not laid out yet
+        return Math.Round(Math.Clamp(wanted, MainViewModel.SmallestFileListHeight, tallest));
+    }
 
     private async void OnAddFiles(object? sender, RoutedEventArgs e)
     {

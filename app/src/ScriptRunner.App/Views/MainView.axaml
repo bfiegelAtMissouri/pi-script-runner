@@ -129,7 +129,11 @@
           <Button Content="Add files…" Click="OnAddFiles" />
           <TextBlock Classes="label" Text="or drop your .py file and any sound or image files here." />
         </WrapPanel>
-        <ItemsControl ItemsSource="{Binding Files}">
+        <!-- The file list scrolls once it is taller than FileListHeight (at most two thirds of the screen), so many
+             files never push the output off the screen. The handle under it changes that height. -->
+        <ScrollViewer Name="FileListScroll" MaxHeight="120" AllowAutoHide="False"
+                      HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding Files}" AutomationProperties.Name="Added files">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:FileEntry">
               <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
@@ -143,6 +147,14 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+        </ScrollViewer>
+        <Border Name="FileListGrip" Height="10" Background="Transparent" Cursor="SizeNorthSouth"
+                IsVisible="{Binding Files.Count}" ToolTip.Tip="Drag to make the file list taller or shorter"
+                PointerPressed="OnFileListGripPressed" PointerMoved="OnFileListGripMoved"
+                PointerReleased="OnFileListGripReleased" PointerCaptureLost="OnFileListGripCaptureLost">
+          <Border Width="48" Height="4" CornerRadius="2" Background="Gray" Opacity="0.6"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
         <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding Scripts.Count}">
           <TextBlock Classes="label" Text="Run:" />
           <ComboBox ItemsSource="{Binding Scripts}" SelectedItem="{Binding SelectedScript}" MinWidth="200"

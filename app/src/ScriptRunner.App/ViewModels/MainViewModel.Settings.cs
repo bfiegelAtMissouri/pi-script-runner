@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ScriptRunner.App.Services;
@@ -14,6 +15,8 @@ public sealed partial class MainViewModel
     public static readonly int DefaultPiCommandSeconds = (int)PiCommand.DefaultTimeout.TotalSeconds;
     public const int DefaultLocalLoadSeconds = 120;
     public const int DefaultLocalCallSeconds = 60;
+    public const double DefaultFileListHeight = 120;
+    public const double SmallestFileListHeight = 48;
 
     private int shownFilesKept = DefaultShownFilesKept;
     private int outputCharactersKept = DefaultOutputCharactersKept;
@@ -59,6 +62,13 @@ public sealed partial class MainViewModel
     [ObservableProperty]
     public partial string LocalCallSecondsText { get; set; } = "";
 
+    /// <summary>
+    /// Tallest the list of added files grows before it scrolls, in pixels. The user changes it by dragging the
+    /// handle under the list; it is kept between runs of the app.
+    /// </summary>
+    [ObservableProperty]
+    public partial double FileListHeight { get; set; } = DefaultFileListHeight;
+
     /// <summary>Where the diagnostic log and crash reports are kept.</summary>
     public string LogsFolder => DiagnosticLog.Folder ?? "(not available)";
 
@@ -79,6 +89,7 @@ public sealed partial class MainViewModel
         LocalPythonText = "";
         LocalLoadSecondsText = DefaultLocalLoadSeconds.ToString();
         LocalCallSecondsText = DefaultLocalCallSeconds.ToString();
+        FileListHeight = DefaultFileListHeight;
         SettingsError = "";
     }
 
@@ -92,6 +103,10 @@ public sealed partial class MainViewModel
         LocalPythonText = settings.Get("localPython", "");
         LocalLoadSecondsText = settings.Get("localLoadSeconds", DefaultLocalLoadSeconds.ToString());
         LocalCallSecondsText = settings.Get("localCallSeconds", DefaultLocalCallSeconds.ToString());
+        FileListHeight = double.TryParse(settings.Get("fileListHeight", ""), NumberStyles.Float, CultureInfo.InvariantCulture,
+                                         out double height) && SmallestFileListHeight <= height
+            ? height
+            : DefaultFileListHeight;
         SettingsError = "";
     }
 
@@ -140,6 +155,9 @@ public sealed partial class MainViewModel
             settings.Set("piCommandSeconds", value.Trim());
         }
     }
+
+    partial void OnFileListHeightChanged(double value) =>
+        settings.Set("fileListHeight", Math.Round(value).ToString(CultureInfo.InvariantCulture));
 
     partial void OnLocalPythonTextChanged(string value) => settings.Set("localPython", value.Trim());
 
