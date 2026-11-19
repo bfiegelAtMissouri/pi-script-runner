@@ -125,9 +125,6 @@ def main():
     print("Robot check: %s" % name)
     print(INFO + "System:   %s, %s (%s)" % (bits, os_name(), machine))
     print(INFO + "Python:   %s, %s" % (platform.python_version(), sys.executable))
-    if "raspberrypi" == name:
-        print(INFO + "Name:     raspberrypi is the default name. If several robots have it, "
-                     "connect by IP address to be sure which one you reach.")
 
     free = shutil.disk_usage(os.path.expanduser("~")).free / 1e9
     print((OK if 1 <= free else PROBLEM) + "Storage:  %.1f GB free" % free)
