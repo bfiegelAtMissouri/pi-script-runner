@@ -82,10 +82,16 @@ cleans up when you press Stop (motors off, camera closed, sensors stopped).
 | `rvr/rvr_square_photos.py` | Driving a square and showing a photo taken at each corner | Sphero RVR, Pi camera |
 | `rvr/color_detection.py` | Reading the color under the robot and saying the strongest of red, green, and blue | Sphero RVR |
 | `rvr/ambient_light.py` | Reporting the light level until Stop, saying "Bright" or "Dark" when it changes | Sphero RVR |
+| `rvr/rvr_position.py` | The RVR's own position tracking: driving a square to target positions, printing where it thinks it is at each corner, and drawing its reported path | Sphero RVR, matplotlib |
+| `rvr/room_map.py` | Mapping a square around the robot with the distance sensor (type the size in meters when asked) and showing the room layout as a picture; also runs without a robot (`--simulate`) | Sphero RVR, Qwiic VL53L1X, numpy, matplotlib |
 | `sensors/distance_sensor.py` | Measuring distance until Stop, warning out loud when something is close | SparkFun Qwiic VL53L1X |
 | `sensors/oled_display.py` | Showing two lines of text on the display, cleared when you press Stop | SparkFun Qwiic OLED (128 x 32) |
 | `sensors/camera_photo.py` | Taking a photo and showing it | Pi camera |
 | `sensors/camera_dominant_color.py` | Showing a photo and saying whether red, green, or blue is strongest in it | Pi camera, numpy |
+| `sensors/camera2_photo.py` | Taking a photo with Picamera2 and showing it | 64-bit robot, Pi camera |
+| `sensors/robot_ultralytics.py` | YOLO object detection on the Pi: finding and boxing the objects in a photo | 64-bit robot, Pi camera |
+| `sensors/robot_classify.py` | Classifying a photo (or an added picture) with a YOLO classification model: its five best guesses of what it shows | 64-bit robot, Pi camera |
+| `sensors/robot_ocr.py` | Reading the text in a photo (or an added picture) with Tesseract and printing it | 64-bit robot, Pi camera |
 | `showcase/explorer.py` | A mission using everything at once: explores while avoiding obstacles, photographs each obstacle, watches the floor for a target color, turns on its headlights in the dark, shows its state on the OLED and with its lights, and gives a spoken summary | Sphero RVR+, Pi camera, Qwiic VL53L1X, Qwiic OLED |
 | `remote/remote_basics.py` | `remote_execute()`: functions that run on the laptop, including one given a CSV file from the robot (add `remote_tools.py` with **Local** checked; app only) | Nothing |
 | `remote/robot_detect.py` | Looking around with YOLO object detection run on the laptop, saying what it sees (add `robot_api.py`, and `remote_vision.py` with **Local** checked; app only) | Sphero RVR, Pi camera; Ultralytics on the laptop |
