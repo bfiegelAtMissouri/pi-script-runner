@@ -13,15 +13,25 @@ namespace ScriptRunner.App.ViewModels;
 /// <summary>A file to upload with the script.</summary>
 public sealed partial class FileEntry : ObservableObject
 {
-    public FileEntry(string name, byte[] data)
+    /// <param name="reader">Reads the file again from where it was added (for Reload), or null when it cannot be read
+    /// again (for example an example built into the app).</param>
+    public FileEntry(string name, byte[] data, Func<Task<byte[]>>? reader = null)
     {
         Name = name;
         Data = data;
+        Reader = reader;
     }
 
     public string Name { get; }
 
-    public byte[] Data { get; }
+    /// <summary>The contents uploaded with each run: as added, or as last reloaded.</summary>
+    public byte[] Data { get; internal set; }
+
+    public Func<Task<byte[]>>? Reader { get; }
+
+    /// <summary>A short note beside the file's name, for example when it was last updated by Reload.</summary>
+    [ObservableProperty]
+    public partial string Note { get; set; } = "";
 
     public bool IsScript => Name.EndsWith(".py", StringComparison.OrdinalIgnoreCase);
 
@@ -60,6 +70,7 @@ public sealed partial class MainViewModel : ViewModelBase
         LoadLimits();
         SpeakSay = settings.GetBool("speakSay", true);
         SpeakAll = settings.GetBool("speakAll", false);
+        ReloadBeforeRun = settings.GetBool("reloadBeforeRun", true);
         RememberSecret = settings.GetBool("rememberSecret", false);
         LoadRememberedSecret();
         StatusText = "Ready";
@@ -201,17 +212,22 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private string SecretKey => $"{(IsSsh ? "ssh" : "http")}:{User.Trim()}@{Host.Trim()}:{Port.Trim()}";
 
+    /// <summary>Adds files that cannot be read again (Reload leaves them as they are).</summary>
+    public void AddFiles(IEnumerable<(string Name, byte[] Data)> added) =>
+        AddFiles(added.Select(file => new AddedFile(file.Name, file.Data, null)).ToList());
+
     /// <summary>Adds files chosen in the file picker or dropped on the window. A file with the same name is replaced.</summary>
-    public void AddFiles(IEnumerable<(string Name, byte[] Data)> added)
+    public void AddFiles(IReadOnlyList<AddedFile> added, IReadOnlyCollection<string>? localNames = null)
     {
-        foreach ((string name, byte[] data) in added)
+        foreach ((string name, byte[] data, Func<Task<byte[]>>? reader) in added)
         {
             FileEntry? existing = Files.FirstOrDefault(f => f.Name == name);
             if (existing is not null)
             {
                 Files.Remove(existing);
             }
-            var entry = new FileEntry(name, data) { IsLocal = existing?.IsLocal ?? false };   // a replaced file keeps its place
+            bool isLocal = localNames?.Contains(name) ?? existing?.IsLocal ?? false;      // a replaced file keeps its setting
+            var entry = new FileEntry(name, data, reader) { IsLocal = isLocal };
             entry.PropertyChanged += (_, e) =>
             {
                 if (nameof(FileEntry.IsLocal) == e.PropertyName)
@@ -273,6 +289,16 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             return;
         }
+        IReadOnlyList<string> reloaded = Array.Empty<string>();
+        if (ReloadBeforeRun)
+        {
+            IReadOnlyList<string>? changed = await ReloadChangedFilesAsync();
+            if (changed is null)
+            {
+                return;
+            }
+            reloaded = changed;
+        }
         try
         {
             if (connection is null || wanted != connectionSettings)
@@ -295,6 +321,14 @@ public sealed partial class MainViewModel : ViewModelBase
             }
             platform.Speech.StopSpeaking();
             ClearOutput();
+            ClearErrorReport();
+            ClearPlot();
+            StartRecord(wanted, SelectedScript!);
+            if (0 < reloaded.Count)
+            {
+                Append("[Reloaded the changed files: " + string.Join(", ", reloaded) + "]\n");
+                ShowOutput();
+            }
             StatusText = "Connecting…";
             IsRunning = true;
             List<RunFile> files = Files.Where(f => !f.IsLocal).Select(f => new RunFile(f.Name, f.Data)).ToList();
@@ -434,7 +468,7 @@ public sealed partial class MainViewModel : ViewModelBase
         ShowOutput();
     }
 
-    private async Task RunOnPiAsync(string title, string command)
+    private async Task RunOnPiAsync(string title, string command, TimeSpan? timeout = null)
     {
         DiagnosticLog.Write("Pi command: " + (title.StartsWith('$') ? "(typed command)" : title));   // typed text may hold a password
         ConnectionSettings? target = ReadSettings();
@@ -449,7 +483,7 @@ public sealed partial class MainViewModel : ViewModelBase
         try
         {
             CommandResult result = await PiCommand.RunAsync(target with { Mode = ConnectionMode.Ssh }, settings, command,
-                TimeSpan.FromSeconds(piCommandSeconds));
+                timeout ?? TimeSpan.FromSeconds(piCommandSeconds));
             Append(result.Output.EndsWith('\n') || 0 == result.Output.Length ? result.Output : result.Output + "\n");
             Append($"[exit code {result.ExitCode?.ToString() ?? "unknown"}]\n");
         }
@@ -468,8 +502,18 @@ public sealed partial class MainViewModel : ViewModelBase
     private void Clear()
     {
         ClearOutput();
+        ClearErrorReport();
         ErrorText = "";
     }
+
+    /// <summary>
+    /// Runs the robot check on the Pi (SSH mode): its name and system, storage, Qwiic devices, camera, other running
+    /// Python programs, and RVR battery. It changes nothing and does not move the robot.
+    /// </summary>
+    [RelayCommand]
+    private async Task CheckRobotAsync() =>
+        await RunOnPiAsync("Robot check (OK = fine, !! = needs attention)", RobotCheck.Command,
+            RobotCheck.Timeout > TimeSpan.FromSeconds(piCommandSeconds) ? RobotCheck.Timeout : TimeSpan.FromSeconds(piCommandSeconds));
 
     [RelayCommand]
     private void ForgetHostKey()
@@ -553,6 +597,11 @@ public sealed partial class MainViewModel : ViewModelBase
                 string ending = exited.Message ?? ((exited.Stopped ? "Stopped" : "Finished") +
                     (exited.Code is null ? "" : $" (exit code {exited.Code})"));
                 Append("\n[" + ending + "]\n");
+                EndRecord(ending);
+                if (!exited.Stopped)
+                {
+                    ReportRunError();
+                }
                 IsRunning = false;
                 StatusText = "Ready";
                 _ = StopLocalFunctionsAsync();
@@ -591,6 +640,9 @@ public sealed partial class MainViewModel : ViewModelBase
                     {
                         showQueue = ShowFileAfterAsync(showQueue, connection, show.FileName);
                     }
+                    break;
+                case PlotItem plot:
+                    AddPlotPoint(plot.Values);
                     break;
                 case CallItem call:
                     if (connection is not null)
@@ -637,6 +689,8 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private void Append(string text)
     {
+        RecordRunText(text);
+        RecordText(text);
         committed.Append(text);
         if (outputCharactersKept < committed.Length)
         {

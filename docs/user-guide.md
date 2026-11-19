@@ -71,7 +71,7 @@ See [runner-io.md](runner-io.md) for details.
 
 ## Examples
 
-The [examples](../examples) folder has scripts to try. Each one works with the app and the browser page, and each
+The [examples](../examples) folder has scripts to try; the app also lists them under **Examples**. Each one works with the app and the browser page, and each
 cleans up when you press Stop (motors off, camera closed, sensors stopped).
 
 | File | Shows | Needs |
@@ -84,7 +84,7 @@ cleans up when you press Stop (motors off, camera closed, sensors stopped).
 | `rvr/ambient_light.py` | Reporting the light level until Stop, saying "Bright" or "Dark" when it changes | Sphero RVR |
 | `rvr/rvr_position.py` | The RVR's own position tracking: driving a square to target positions, printing where it thinks it is at each corner, and drawing its reported path | Sphero RVR, matplotlib |
 | `rvr/room_map.py` | Mapping a square around the robot with the distance sensor (type the size in meters when asked) and showing the room layout as a picture; also runs without a robot (`--simulate`) | Sphero RVR, Qwiic VL53L1X, numpy, matplotlib |
-| `sensors/distance_sensor.py` | Measuring distance until Stop, warning out loud when something is close | SparkFun Qwiic VL53L1X |
+| `sensors/distance_sensor.py` | Measuring distance until Stop, graphing it with `plot()`, and warning out loud when something is close | SparkFun Qwiic VL53L1X |
 | `sensors/oled_display.py` | Showing two lines of text on the display, cleared when you press Stop | SparkFun Qwiic OLED (128 x 32) |
 | `sensors/camera_photo.py` | Taking a photo and showing it | Pi camera |
 | `sensors/camera_dominant_color.py` | Showing a photo and saying whether red, green, or blue is strongest in it | Pi camera, numpy |

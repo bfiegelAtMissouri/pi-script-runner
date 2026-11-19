@@ -1,0 +1,161 @@
+{
+  "about": "The examples the app lists in its Examples page. \"script\" is the file that runs; \"with\" lists the files it needs (local: true = added with Local checked). Paths are relative to this folder. A test checks that every example script is listed here.",
+  "examples": [
+    {
+      "script": "hello_input.py",
+      "group": "Getting started",
+      "shows": "Keyboard input, Stop, and finally:",
+      "needs": "Nothing"
+    },
+    {
+      "script": "speak_play_show.py",
+      "group": "Getting started",
+      "shows": "say(), play(), and show()",
+      "needs": "Nothing",
+      "with": [
+        {
+          "path": "beep.wav"
+        }
+      ]
+    },
+    {
+      "script": "rvr/rvr_square.py",
+      "group": "RVR",
+      "shows": "Driving a square with spoken updates and a safe stop",
+      "needs": "Sphero RVR"
+    },
+    {
+      "script": "rvr/rvr_square_photos.py",
+      "group": "RVR",
+      "shows": "Driving a square and showing a photo taken at each corner",
+      "needs": "Sphero RVR, Pi camera"
+    },
+    {
+      "script": "rvr/color_detection.py",
+      "group": "RVR",
+      "shows": "Reading the color under the robot and saying the strongest of red, green, and blue",
+      "needs": "Sphero RVR"
+    },
+    {
+      "script": "rvr/ambient_light.py",
+      "group": "RVR",
+      "shows": "Reporting the light level until Stop, saying \"Bright\" or \"Dark\" when it changes",
+      "needs": "Sphero RVR"
+    },
+    {
+      "script": "rvr/rvr_position.py",
+      "group": "RVR",
+      "shows": "The RVR's own position tracking: driving a square to target positions, printing where it thinks it is at each corner, and drawing its reported path",
+      "needs": "Sphero RVR, matplotlib"
+    },
+    {
+      "script": "rvr/room_map.py",
+      "group": "RVR",
+      "shows": "Mapping a square around the robot with the distance sensor (type the size in meters when asked) and showing the room layout as a picture; also runs without a robot (--simulate)",
+      "needs": "Sphero RVR, Qwiic VL53L1X, numpy, matplotlib"
+    },
+    {
+      "script": "sensors/distance_sensor.py",
+      "group": "Sensors and camera",
+      "shows": "Measuring distance until Stop, graphing it with plot(), and warning out loud when something is close",
+      "needs": "SparkFun Qwiic VL53L1X"
+    },
+    {
+      "script": "sensors/oled_display.py",
+      "group": "Sensors and camera",
+      "shows": "Showing two lines of text on the display, cleared when you press Stop",
+      "needs": "SparkFun Qwiic OLED (128 x 32)"
+    },
+    {
+      "script": "sensors/camera_photo.py",
+      "group": "Sensors and camera",
+      "shows": "Taking a photo and showing it",
+      "needs": "Pi camera"
+    },
+    {
+      "script": "sensors/camera_dominant_color.py",
+      "group": "Sensors and camera",
+      "shows": "Showing a photo and saying whether red, green, or blue is strongest in it",
+      "needs": "Pi camera, numpy"
+    },
+    {
+      "script": "sensors/camera2_photo.py",
+      "group": "Sensors and camera",
+      "shows": "Taking a photo with Picamera2 and showing it",
+      "needs": "64-bit robot, Pi camera"
+    },
+    {
+      "script": "sensors/robot_ultralytics.py",
+      "group": "Sensors and camera",
+      "shows": "YOLO object detection on the Pi: finding and boxing the objects in a photo",
+      "needs": "64-bit robot, Pi camera"
+    },
+    {
+      "script": "sensors/robot_classify.py",
+      "group": "Sensors and camera",
+      "shows": "Classifying a photo (or an added picture) with a YOLO classification model: its five best guesses of what it shows",
+      "needs": "64-bit robot, Pi camera"
+    },
+    {
+      "script": "sensors/robot_ocr.py",
+      "group": "Sensors and camera",
+      "shows": "Reading the text in a photo (or an added picture) with Tesseract and printing it",
+      "needs": "64-bit robot, Pi camera"
+    },
+    {
+      "script": "showcase/explorer.py",
+      "group": "Showcase",
+      "shows": "A mission using everything at once: explores while avoiding obstacles, photographs each obstacle, watches the floor for a target color, turns on its headlights in the dark, shows its state on the OLED and with its lights, and gives a spoken summary",
+      "needs": "Sphero RVR+, Pi camera, Qwiic VL53L1X, Qwiic OLED"
+    },
+    {
+      "script": "remote/remote_basics.py",
+      "group": "Functions on the laptop",
+      "shows": "remote_execute(): functions that run on the laptop, including one given a CSV file from the robot",
+      "needs": "Nothing",
+      "with": [
+        {
+          "path": "remote/remote_tools.py",
+          "local": true
+        }
+      ]
+    },
+    {
+      "script": "remote/robot_detect.py",
+      "group": "Functions on the laptop",
+      "shows": "Looking around with YOLO object detection run on the laptop, saying what it sees",
+      "needs": "Sphero RVR, Pi camera; Ultralytics on the laptop",
+      "with": [
+        {
+          "path": "robot_api/robot_api.py"
+        },
+        {
+          "path": "remote/remote_vision.py",
+          "local": true
+        }
+      ]
+    },
+    {
+      "script": "robot_api/sensor_check.py",
+      "group": "Robot API",
+      "shows": "The Robot API: reading the distance and ambient light and showing the distance on the OLED",
+      "needs": "Sphero RVR, Qwiic VL53L1X, Qwiic OLED",
+      "with": [
+        {
+          "path": "robot_api/robot_api.py"
+        }
+      ]
+    },
+    {
+      "script": "robot_api/square_tour.py",
+      "group": "Robot API",
+      "shows": "The Robot API: driving a square with colored lights, then at each corner reading the floor color and distance, showing a photo, and saying what it found",
+      "needs": "Sphero RVR+, Pi camera, Qwiic VL53L1X, Qwiic OLED",
+      "with": [
+        {
+          "path": "robot_api/robot_api.py"
+        }
+      ]
+    }
+  ]
+}

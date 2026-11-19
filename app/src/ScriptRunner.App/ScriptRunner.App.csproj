@@ -15,6 +15,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The repository's examples, listed in the app's Examples page (examples.json says which files go together). -->
+    <EmbeddedResource Include="..\..\..\examples\**\*.py;..\..\..\examples\**\*.wav;..\..\..\examples\examples.json"
+                      Exclude="..\..\..\examples\**\__pycache__\**"
+                      LogicalName="examples/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ScriptRunner.Core\ScriptRunner.Core.csproj" />
   </ItemGroup>
 

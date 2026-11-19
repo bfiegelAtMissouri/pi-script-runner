@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ScriptRunner.App.ViewModels"
+             xmlns:local="using:ScriptRunner.App.Views"
              x:Class="ScriptRunner.App.Views.MainView"
              x:DataType="vm:MainViewModel"
              Focusable="True">
@@ -42,6 +43,8 @@
       <CheckBox IsChecked="{Binding RememberSecret}" IsVisible="{Binding CanRememberSecret}"
                 Content="Remember (secure storage)" />
       <Button Content="Forget saved SSH key" Command="{Binding ForgetHostKeyCommand}" IsVisible="{Binding IsSsh}" />
+      <ToggleButton Content="Examples" IsChecked="{Binding IsExamplesOpen}"
+                    ToolTip.Tip="Example scripts built into the app, ready to run" />
       <ToggleButton Content="Settings" IsChecked="{Binding IsSettingsOpen}" />
     </WrapPanel>
 
@@ -99,6 +102,8 @@
           <TextBlock Grid.Row="7" Grid.Column="2" Text="Longest one remote_execute() call may take on the laptop"
                      VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
         </Grid>
+        <CheckBox IsChecked="{Binding ReloadBeforeRun}" Content="Reload changed files before each run"
+                  ToolTip.Tip="Each Run first reads the added files again, so edits saved in another editor are what runs" />
         <TextBlock Text="Diagnostics" FontWeight="SemiBold" Margin="0,8,0,0" />
         <TextBlock TextWrapping="Wrap" Opacity="0.75"
                    Text="The app keeps a log of what it does (never passwords, PINs, or script output) and saves a report when something unexpected goes wrong. Send the report with a description of what happened." />
@@ -118,8 +123,54 @@
     </Border>
     </ScrollViewer>
 
-    <!-- The rest of the screen, hidden while Settings is open -->
-    <DockPanel IsVisible="{Binding !IsSettingsOpen}">
+    <!-- Examples page: the repository's examples, built into the app. It takes the place of the rest of the screen. -->
+    <ScrollViewer DockPanel.Dock="Top" IsVisible="{Binding IsExamplesOpen}" HorizontalScrollBarVisibility="Disabled">
+    <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,8,0,0">
+      <StackPanel Spacing="6">
+        <TextBlock Text="Examples" FontWeight="SemiBold" FontSize="16" />
+        <TextBlock TextWrapping="Wrap" Opacity="0.75"
+                   Text="Use puts the example's files in the file list, ready to run. Copy to a folder saves them where you choose and adds those copies, so you can change them in your editor; Run picks up your saved changes." />
+        <ItemsControl ItemsSource="{Binding ExampleGroups}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ExampleGroup">
+              <StackPanel Spacing="4" Margin="0,8,0,0">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding Examples}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:Example">
+                      <Border BorderBrush="Gray" BorderThickness="0,0,0,1" Padding="0,4">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="{Binding Script}" FontFamily="Consolas, Menlo, monospace" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Shows}" TextWrapping="Wrap" />
+                            <TextBlock TextWrapping="Wrap" Opacity="0.75">
+                              <Run Text="Needs: " /><Run Text="{Binding Needs}" />
+                            </TextBlock>
+                            <TextBlock Text="{Binding WithText}" TextWrapping="Wrap" Opacity="0.75" IsVisible="{Binding HasWith}" />
+                          </StackPanel>
+                          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="8,0,0,0">
+                            <Button Content="Use"
+                                    Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).UseExampleCommand}"
+                                    CommandParameter="{Binding}" />
+                            <Button Content="Copy to a folder…" Click="OnCopyExample" Tag="{Binding}" />
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="{Binding ErrorText}" Foreground="#C62828" TextWrapping="Wrap" />
+        <Button Content="Done" Command="{Binding ToggleExamplesCommand}" />
+      </StackPanel>
+    </Border>
+    </ScrollViewer>
+
+    <!-- The rest of the screen, hidden while Settings or Examples is open -->
+    <DockPanel IsVisible="{Binding IsMainOpen}">
 
     <!-- Files -->
     <Border DockPanel.Dock="Top" Name="DropArea" BorderBrush="Gray" BorderThickness="1" CornerRadius="6"
@@ -127,6 +178,8 @@
       <StackPanel Spacing="6">
         <WrapPanel>
           <Button Content="Add files…" Click="OnAddFiles" />
+          <Button Content="Reload files" Command="{Binding ReloadFilesCommand}" IsVisible="{Binding Files.Count}"
+                  ToolTip.Tip="Read the files again from where they were added, so changes saved in your editor are used" />
           <TextBlock Classes="label" Text="or drop your .py file and any sound or image files here." />
         </WrapPanel>
         <!-- The file list scrolls once it is taller than FileListHeight (at most two thirds of the screen), so many
@@ -138,6 +191,7 @@
             <DataTemplate x:DataType="vm:FileEntry">
               <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Note}" VerticalAlignment="Center" Opacity="0.65" FontStyle="Italic" />
                 <CheckBox IsChecked="{Binding IsLocal}" Content="Local"
                           ToolTip.Tip="Keep this file on this computer: Local .py files run here, and the robot's script calls their functions with remote_execute()" />
                 <Button Content="Remove" Padding="6,2"
@@ -170,6 +224,8 @@
       <Button Content="Disconnect" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}"
               ToolTip.Tip="Close the connection to the Pi (a running script is stopped first)" />
       <Button Content="Clear output" Command="{Binding ClearCommand}" />
+      <Button Content="Save run…" Click="OnSaveRun" IsEnabled="{Binding HasRunRecord}"
+              ToolTip.Tip="Save this run's output (with the time of each line), its files, the plot data, and the files it showed, in a new folder" />
       <CheckBox IsChecked="{Binding SpeakSay}" Content="Speak say() messages" />
       <CheckBox IsChecked="{Binding SpeakAll}" Content="Speak all output" />
     </WrapPanel>
@@ -179,6 +235,9 @@
       <Button DockPanel.Dock="Right" Content="Force stop all Python" Command="{Binding ForceStopCommand}"
               IsEnabled="{Binding CanSendPiCommand}" Margin="8,0,0,0"
               ToolTip.Tip="Ctrl+C to every Python program you started on the Pi, then force-quit after 2 seconds" />
+      <Button DockPanel.Dock="Right" Content="Check robot" Command="{Binding CheckRobotCommand}"
+              IsEnabled="{Binding CanSendPiCommand}" Margin="8,0,0,0"
+              ToolTip.Tip="Report the robot's name and system, storage, distance sensor, display, camera, other running Python programs, and RVR battery (moves nothing)" />
       <Button DockPanel.Dock="Right" Content="Run on Pi" Command="{Binding RunPiCommandCommand}"
               IsEnabled="{Binding CanSendPiCommand}" Margin="8,0,0,0" />
       <TextBox Text="{Binding PiCommandText}" PlaceholderText="Command to run on the Pi, for example: ps aux | grep python3"
@@ -194,6 +253,17 @@
       <TextBlock Text="{Binding ErrorText}" Foreground="#C62828" TextWrapping="Wrap" FontWeight="SemiBold" />
     </StackPanel>
 
+    <!-- The Python error a run ended with: where, the line itself, and a hint. -->
+    <Border DockPanel.Dock="Top" IsVisible="{Binding HasErrorReport}" BorderBrush="#C62828" BorderThickness="4,0,0,0"
+            Background="#1AC62828" Padding="10,6" Margin="0,0,0,8">
+      <StackPanel Spacing="4">
+        <SelectableTextBlock Text="{Binding ErrorReportTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+        <SelectableTextBlock Text="{Binding ErrorReportCode}" FontFamily="Consolas, Menlo, monospace"
+                             IsVisible="{Binding HasErrorReportCode}" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding ErrorReportHint}" TextWrapping="Wrap" IsVisible="{Binding HasErrorReportHint}" />
+      </StackPanel>
+    </Border>
+
     <!-- Input -->
     <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
       <Button DockPanel.Dock="Right" Content="Send" Command="{Binding SendCommand}" IsEnabled="{Binding IsRunning}" Margin="8,0,0,0" />
@@ -206,8 +276,22 @@
       </TextBox>
     </DockPanel>
 
+    <!-- The live graph of plot() values above the output, with a splitter between them to share the height. -->
+    <Grid Name="OutputArea" RowDefinitions="0,0,*">
+    <Border Grid.Row="0" IsVisible="{Binding HasPlot}" BorderBrush="Gray" BorderThickness="1" CornerRadius="6" Padding="6">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Spacing="6" VerticalAlignment="Top" Margin="8,0,0,0">
+          <Button Content="Save data…" Click="OnSavePlot" ToolTip.Tip="Save the plotted numbers as a CSV file (opens in a spreadsheet)" />
+          <Button Content="Clear" Command="{Binding ClearPlotCommand}" />
+        </StackPanel>
+        <local:PlotView Data="{Binding Plot}" MinHeight="60" AutomationProperties.Name="Plot of plot() values" />
+      </DockPanel>
+    </Border>
+    <GridSplitter Grid.Row="1" IsVisible="{Binding HasPlot}" ResizeDirection="Rows" Background="Transparent"
+                  ToolTip.Tip="Drag to share the height between the graph and the output" />
+
     <!-- Output and images -->
-    <Grid ColumnDefinitions="*,Auto" ClipToBounds="True">
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ClipToBounds="True">
       <TextBox Name="OutputBox" Grid.Column="0" Text="{Binding OutputText}" IsReadOnly="True"
                AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas, Menlo, monospace"
                Background="#10141B" Foreground="#E6EDF3"
@@ -248,6 +332,7 @@
           <Button Content="Clear all" Command="{Binding ClearShownCommand}" ToolTip.Tip="Remove every file from this panel" />
         </WrapPanel>
       </Grid>
+    </Grid>
     </Grid>
     </DockPanel>
   </DockPanel>

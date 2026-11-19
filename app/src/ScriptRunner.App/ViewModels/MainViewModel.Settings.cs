@@ -28,7 +28,11 @@ public sealed partial class MainViewModel
     private long LargestFileBytes { get; set; } = DefaultLargestFileMegabytes * 1024L * 1024L;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsMainOpen))]
     public partial bool IsSettingsOpen { get; set; }
+
+    /// <summary>True when the main screen shows: neither Settings nor Examples is open.</summary>
+    public bool IsMainOpen => !IsSettingsOpen && !IsExamplesOpen;
 
     /// <summary>What is wrong with a value on the Settings page, or "".</summary>
     [ObservableProperty]
@@ -90,6 +94,7 @@ public sealed partial class MainViewModel
         LocalLoadSecondsText = DefaultLocalLoadSeconds.ToString();
         LocalCallSecondsText = DefaultLocalCallSeconds.ToString();
         FileListHeight = DefaultFileListHeight;
+        ReloadBeforeRun = true;
         SettingsError = "";
     }
 

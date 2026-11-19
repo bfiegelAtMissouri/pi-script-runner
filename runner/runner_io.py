@@ -7,6 +7,7 @@ runner_io: send speech, sounds, and images from a script to the Pi Script Runner
     play("beep.wav")             # the laptop plays this sound file
     show("map.png")              # the laptop displays this image
     show("readings.csv")         # the laptop shows its first lines and can save it
+    plot(distance=d, light=l)    # the app adds these numbers to a live graph
 
 Files for play() and show() must be in the same folder as the script (drop them onto
 the page along with the .py file, or have the script create them) or in /tmp
@@ -49,6 +50,32 @@ def play(filename):
 def show(filename):
     """Send a file to the laptop: images are displayed, text files previewed, and any file can be saved there."""
     _send("show", filename)
+
+
+def plot(*values, **named_values):
+    """
+    Purpose: add numbers to the app's live graph, one point per call for each name
+    Inputs:  named_values - numbers to plot, each with its own line, for example plot(distance=d, light=l)
+             values - numbers without names, plotted as "value" (or "value 1", "value 2", ... for several)
+    Returns: nothing
+
+    Call it in a loop, for example once per sensor reading. Values that are not numbers are skipped. The app shows
+    the graph beside the output and can save the numbers as a CSV file; the browser page shows them as text.
+    """
+    points = {}
+    for index, value in enumerate(values, 1):
+        points["value" if 1 == len(values) else "value %d" % index] = value
+    points.update(named_values)
+    numbers = {}
+    for name, value in points.items():
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if number == number and abs(number) != float("inf"):    # JSON has no NaN or infinity
+            numbers[str(name)] = number
+    if numbers:
+        _send("plot", json.dumps(numbers))
 
 
 # ---- Functions on the laptop ------------------------------------------------------------------------------

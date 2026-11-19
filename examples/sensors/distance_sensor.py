@@ -1,6 +1,6 @@
 """
 Measure distance with a SparkFun Qwiic VL53L1X distance sensor twice a second
-until Stop is pressed, and warn out loud when something comes close.
+until Stop is pressed, graph it in the app, and warn out loud when something comes close.
 
 Requires: the sparkfun-qwiic-vl53l1x library and the sensor on the Qwiic (I2C) bus.
 """
@@ -8,7 +8,7 @@ import time
 
 from qwiic_vl53l1x import QwiicVL53L1X
 
-from runner_io import say
+from runner_io import plot, say
 
 READ_EVERY_SECONDS = 0.5
 CLOSE_MM = 200                 # closer than this (millimeters) counts as close
@@ -40,6 +40,7 @@ if '__main__' == __name__:
         while True:
             distance = distance_mm()
             print("Distance: %d mm" % distance)
+            plot(distance_mm=distance)          # the app graphs it as it changes
             is_close = distance < CLOSE_MM
             if is_close and not was_close:
                 say("Too close")

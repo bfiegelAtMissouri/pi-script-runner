@@ -1,3 +1,4 @@
+using System.Text;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
@@ -32,10 +33,29 @@ public partial class MainView : UserControl
                     {
                         FitFileList();
                     }
+                    else if (nameof(MainViewModel.HasPlot) == e.PropertyName)
+                    {
+                        ShowPlotRows(model.HasPlot);
+                    }
                 };
                 FitFileList();
+                ShowPlotRows(model.HasPlot);
             }
         };
+    }
+
+    /// <summary>
+    /// Gives the graph two fifths of the height below the controls and the output the rest, or the output all of it
+    /// when there is no graph. The splitter between them changes the share.
+    /// </summary>
+    private void ShowPlotRows(bool hasPlot)
+    {
+        RowDefinitions rows = OutputArea.RowDefinitions;
+        rows[0].Height = hasPlot ? new GridLength(2, GridUnitType.Star) : new GridLength(0);
+        rows[0].MinHeight = hasPlot ? 100 : 0;
+        rows[1].Height = hasPlot ? new GridLength(8) : new GridLength(0);
+        rows[2].Height = new GridLength(3, GridUnitType.Star);
+        rows[2].MinHeight = 80;
     }
 
     /// <summary>Applies the chosen file list height, kept to two thirds of the screen when the screen is smaller.</summary>
@@ -114,15 +134,180 @@ public partial class MainView : UserControl
 
     private async Task AddAsync(IEnumerable<IStorageFile> files)
     {
-        var added = new List<(string, byte[])>();
+        var added = new List<AddedFile>();
         foreach (IStorageFile file in files)
+        {
+            Func<Task<byte[]>> reader = ReaderFor(file);
+            added.Add(new AddedFile(file.Name, await reader(), reader));
+        }
+        ViewModel.AddFiles(added);
+    }
+
+    /// <summary>
+    /// Reads a file again from where it was added, for Reload: by its path where it has one (the desktop), otherwise
+    /// by opening it again through the system (Android).
+    /// </summary>
+    private static Func<Task<byte[]>> ReaderFor(IStorageFile file)
+    {
+        string? path = file.TryGetLocalPath();
+        if (path is not null)
+        {
+            return () => File.ReadAllBytesAsync(path);
+        }
+        return async () =>
         {
             await using Stream stream = await file.OpenReadAsync();
             using var buffer = new MemoryStream();
             await stream.CopyToAsync(buffer);
-            added.Add((file.Name, buffer.ToArray()));
+            return buffer.ToArray();
+        };
+    }
+
+    /// <summary>
+    /// Saves an example's files into a chosen folder (existing files of the same name are kept; the copies get a
+    /// number) and puts those copies in the file list, so they can be changed in an editor and reloaded.
+    /// </summary>
+    private async void OnCopyExample(object? sender, RoutedEventArgs e)
+    {
+        TopLevel? top = TopLevel.GetTopLevel(this);
+        if (top is null || sender is not Control { Tag: Example example })
+        {
+            return;
         }
-        ViewModel.AddFiles(added);
+        try
+        {
+            IReadOnlyList<IStorageFolder> picked = await top.StorageProvider.OpenFolderPickerAsync(
+                new FolderPickerOpenOptions { Title = $"Choose a folder for {example.Name} and its files" });
+            if (0 == picked.Count)
+            {
+                return;
+            }
+            var added = new List<AddedFile>();
+            var renamed = new List<string>();
+            foreach (ExampleFile part in example.AllFiles)
+            {
+                byte[] data = ExampleCatalog.Read(part.Path);
+                IStorageFile? existing = await picked[0].GetFileAsync(part.Name);
+                byte[]? there = existing is null ? null : await ReaderFor(existing)();
+                if (existing is not null && there is not null && data.AsSpan().SequenceEqual(there))
+                {
+                    added.Add(new AddedFile(part.Name, data, ReaderFor(existing)));   // already there, unchanged
+                    continue;
+                }
+                string name = await UnusedNameAsync(picked[0], part.Name);
+                IStorageFile? file = await picked[0].CreateFileAsync(name);
+                if (file is null)
+                {
+                    throw new IOException("Could not create " + name);
+                }
+                await WriteAsync(file, data);
+                if (name != part.Name)
+                {
+                    renamed.Add($"{part.Name} as {name}");
+                }
+                added.Add(new AddedFile(part.Name, data, ReaderFor(file)));
+            }
+            ViewModel.UseExampleFiles(example, added);
+            if (0 < renamed.Count)
+            {
+                ViewModel.StatusText += " The folder already had changed files of the same name, so these were saved " +
+                                        "beside them: " + string.Join(", ", renamed) + ".";
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            ViewModel.ErrorText = "Could not copy the example: " + error.Message;
+        }
+    }
+
+    /// <summary>Saves the plotted numbers as a CSV file.</summary>
+    private async void OnSavePlot(object? sender, RoutedEventArgs e)
+    {
+        TopLevel? top = TopLevel.GetTopLevel(this);
+        if (top is null || ViewModel.Plot.IsEmpty)
+        {
+            return;
+        }
+        try
+        {
+            IStorageFile? file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save the plot data",
+                SuggestedFileName = "plot.csv",
+                DefaultExtension = "csv",
+                ShowOverwritePrompt = true,
+            });
+            if (file is not null)
+            {
+                await WriteAsync(file, Encoding.UTF8.GetBytes(ViewModel.Plot.ToCsv()));
+                ViewModel.StatusText = "Saved " + file.Name;
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            ViewModel.ErrorText = "Could not save the plot data: " + error.Message;
+        }
+    }
+
+    /// <summary>
+    /// Saves the latest run in a new folder inside a chosen one: output.txt (the output with the time of each line),
+    /// the files sent with it, plot.csv when the script plotted, and the files it showed.
+    /// </summary>
+    private async void OnSaveRun(object? sender, RoutedEventArgs e)
+    {
+        TopLevel? top = TopLevel.GetTopLevel(this);
+        if (top is null || !ViewModel.HasRunRecord)
+        {
+            return;
+        }
+        try
+        {
+            IReadOnlyList<IStorageFolder> picked = await top.StorageProvider.OpenFolderPickerAsync(
+                new FolderPickerOpenOptions { Title = "Choose where to save the run (a new folder is made in it)" });
+            if (0 == picked.Count)
+            {
+                return;
+            }
+            string script = Path.GetFileNameWithoutExtension(ViewModel.SelectedScript ?? "run");
+            string folderName = $"{script} {DateTime.Now:yyyy-MM-dd HHmmss}";
+            IStorageFolder folder = await picked[0].CreateFolderAsync(folderName)
+                ?? throw new IOException("Could not create the folder " + folderName);
+            await SaveNewAsync(folder, "output.txt", Encoding.UTF8.GetBytes(ViewModel.BuildRunRecord()));
+            if (!ViewModel.Plot.IsEmpty)
+            {
+                await SaveNewAsync(folder, "plot.csv", Encoding.UTF8.GetBytes(ViewModel.Plot.ToCsv()));
+            }
+            if (0 < ViewModel.RecordFiles.Count)
+            {
+                IStorageFolder files = await folder.CreateFolderAsync("files") ?? throw new IOException("Could not create files");
+                foreach ((string name, byte[] data, _) in ViewModel.RecordFiles)
+                {
+                    await SaveNewAsync(files, name, data);
+                }
+            }
+            if (ViewModel.HasShownFiles)
+            {
+                IStorageFolder shown = await folder.CreateFolderAsync("shown") ?? throw new IOException("Could not create shown");
+                foreach (ShownFile file in ViewModel.ShownFiles.ToList())
+                {
+                    await SaveNewAsync(shown, file.FileName, file.Data);
+                }
+            }
+            ViewModel.ErrorText = "";
+            ViewModel.StatusText = "Saved the run in " + folderName;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            ViewModel.ErrorText = "Could not save the run: " + error.Message;
+        }
+    }
+
+    /// <summary>Writes a file under an unused name (name, name-2, name-3, ...).</summary>
+    private static async Task SaveNewAsync(IStorageFolder folder, string name, byte[] data)
+    {
+        IStorageFile file = await folder.CreateFileAsync(await UnusedNameAsync(folder, name))
+            ?? throw new IOException("Could not create " + name);
+        await WriteAsync(file, data);
     }
 
     private async void OnSaveShown(object? sender, RoutedEventArgs e)

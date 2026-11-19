@@ -5,7 +5,7 @@ or app that started it. The runner server and the app's SSH mode both put it on
 the script's import path automatically.
 
 ```python
-from runner_io import say, play, show
+from runner_io import say, play, show, plot
 ```
 
 ## Functions
@@ -15,6 +15,19 @@ from runner_io import say, play, show
 | `say(text)` | Speaks `text` with the browser's built-in text-to-speech |
 | `play(filename)` | Plays a sound file (`.wav`, `.mp3`, `.ogg`) |
 | `show(filename)` | Sends any file to the page and keeps it there with a Save link: images are displayed, text files (`.csv`, `.txt`, `.json`, ...) show their first lines, and other files show their name and size |
+| `plot(name=value, ...)` | Adds numbers to a live graph, one line per name (app only; the browser page shows the numbers as text). `plot(value)` with no name plots it as "value" |
+
+`plot()` is meant for a loop, one call per reading:
+
+```python
+while True:
+    plot(distance=robot.read_distance(), light=robot.read_ambient_light())
+    time.sleep(0.2)
+```
+
+The graph's horizontal axis is the seconds since the first `plot()` of the run, and its vertical scale fits the
+values. **Save data…** beside the graph saves every value as a CSV file, one row per call and one column per name.
+Values that are not numbers are skipped.
 
 `filename` is either relative to the script's folder on the Pi (for example
 `photo.jpg`) or an absolute path in `/tmp` (for example `/tmp/photo.jpg`).
@@ -79,7 +92,8 @@ Each function prints one line to standard output in this form:
 @@runner <kind> <value>
 ```
 
-For example, `say("Hello")` prints `@@runner say Hello`. The page recognizes
+For example, `say("Hello")` prints `@@runner say Hello`, and `plot(distance=412)` prints
+`@@runner plot {"distance": 412.0}`. The page recognizes
 these lines, hides them, and acts on them. Newlines in the value are replaced
 with spaces so each message stays on one line.
 
@@ -89,7 +103,7 @@ as a file next to the script (a `reply-file` line), because a terminal line has
 a length limit.
 
 Because the messages are ordinary output, a script that uses `say()`, `play()`,
-and `show()` still runs anywhere. Run some other way (for example over SSH), the tagged lines
+`show()`, and `plot()` still runs anywhere. Run some other way (for example over SSH), the tagged lines
 simply appear as text.
 
 ## Using the protocol without the module

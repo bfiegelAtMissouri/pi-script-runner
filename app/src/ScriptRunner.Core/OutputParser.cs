@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 
 namespace ScriptRunner.Core;
 
@@ -16,6 +17,9 @@ public sealed record PlayItem(string FileName) : OutputItem;
 
 /// <summary>runner_io.show(): a file to display and keep.</summary>
 public sealed record ShowItem(string FileName) : OutputItem;
+
+/// <summary>runner_io.plot(): named numbers to add to the live graph, in the order the script gave them.</summary>
+public sealed record PlotItem(IReadOnlyList<KeyValuePair<string, double>> Values) : OutputItem;
 
 /// <summary>runner_io.remote_execute(): a request to call a local function, as JSON.</summary>
 public sealed record CallItem(string RequestJson) : OutputItem;
@@ -95,6 +99,32 @@ public sealed class OutputParser
         return new TextItem(text);
     }
 
+    /// <summary>A plot message's values ({"name": number, ...}), or null if it is not one.</summary>
+    private static PlotItem? ReadPlot(string json)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(json);
+            if (JsonValueKind.Object != document.RootElement.ValueKind)
+            {
+                return null;
+            }
+            var values = new List<KeyValuePair<string, double>>();
+            foreach (JsonProperty property in document.RootElement.EnumerateObject())
+            {
+                if (JsonValueKind.Number == property.Value.ValueKind)
+                {
+                    values.Add(new(property.Name, property.Value.GetDouble()));
+                }
+            }
+            return 0 < values.Count ? new PlotItem(values) : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     private static void ParseLine(string line, List<OutputItem> items)
     {
         line = line.TrimEnd('\r');             // terminals (SSH mode) end lines with \r\n
@@ -125,6 +155,9 @@ public sealed class OutputParser
                 break;
             case "call":
                 items.Add(new CallItem(value));
+                break;
+            case "plot" when ReadPlot(value) is { } plot:
+                items.Add(plot);
                 break;
             case "reply":
             case "reply-file":

@@ -344,6 +344,11 @@
       var reply = { id: call.id, ok: false,
                     error: "remote_execute() needs the Script Runner app; the browser page cannot run local functions." };
       post("/api/input", { text: TAG + "reply " + JSON.stringify(reply), echo: false }).catch(function () {});
+    } else if ("plot" === kind) {
+      // plot(): the app draws a graph; the page shows the numbers as text.
+      var values = {};
+      try { values = JSON.parse(value); } catch (e) {}
+      commit("📈 " + Object.keys(values).map(function (k) { return k + " " + values[k]; }).join(", ") + "\n", "notice");
     } else if ("reply" === kind || "reply-file" === kind) {
       // an answer sent to the script: not shown
     } else {

@@ -36,9 +36,38 @@ the app cannot reach the Pi.
    If you add more than one `.py` file, choose which one runs in the **Run:** list. When there are many files, the
    list scrolls instead of pushing the output down; drag the bar under it to make it taller or shorter (at most two
    thirds of the window). The app remembers the height, and **Restore defaults** in **Settings** resets it.
+   **Examples** (beside **Settings**) lists the examples built into the app: **Use** puts an example's files in the
+   list, ready to run, and **Copy to a folder…** saves them where you choose and adds those copies, so you can change
+   them in your editor.
 4. Press **Run**. Type input for `input()` in the box at the bottom and press Enter.
+
+   Each Run first reads the added files again and uses the ones that changed, so edits saved in another editor
+   (VS Code, Thonny) are what runs; the output's first line names the files that changed. **Reload files** does the
+   same without running, and each file shows when it was last updated. If a file was moved, renamed, or deleted, the
+   app says so and runs nothing; remove it and add it again. Files that cannot be read again (the examples used
+   directly) stay as they are. **Reload changed files before each run** in **Settings** turns the automatic reload
+   off.
 5. **Stop** (or the Esc key on the desktop) sends Ctrl+C to the script, so its `finally:` block runs. If the script
    does not stop within 3 seconds it is terminated, and then forced to quit if needed.
+
+When a script ends with a Python error, a box above the output names the error, the file and line it points to (the
+deepest line in your own files, not in a library), the line itself, and a hint for the common errors: a misspelled
+name, a missing colon or bracket, a module that is not installed or a helper file that was not added, a Qwiic device
+that does not answer, or another run still using the robot. Stopping a script is not an error.
+
+When a script calls `plot()` (see [runner-io.md](runner-io.md)), a live graph appears above the output; drag the bar
+between them to share the height. **Save data…** saves the numbers as a CSV file, and the graph is cleared at the
+start of each run.
+
+**Save run…** saves the latest run in a new folder inside one you choose: `output.txt` (a heading with the robot,
+script, files, how it ended, and any error, then the output with the seconds from the start on each line), a `files`
+folder with the files sent with the run as they were then, `plot.csv` when the script plotted, and a `shown` folder
+with the files it showed.
+
+**Check robot** (SSH mode, beside **Run on Pi**) reports, without changing anything or moving the robot: the robot's
+name, 32-bit or 64-bit system, and Python; free storage; whether the distance sensor (I2C 0x29) and the OLED display
+(0x3C or 0x3D) answer; whether the camera is detected; any other Python programs still running (an earlier run that
+did not end); and the RVR's battery level. Lines that need attention start with `!!`.
 
 Each run is stopped automatically after the time limit in **Settings**: 300 seconds unless you change it, or 0 for
 no limit. If a script cannot be confirmed stopped after the last step, the app stops waiting for it and says so,
@@ -59,6 +88,7 @@ that is not allowed is reported and the previous one stays in effect. **Restore 
 | Local Python | automatic | Python that runs local files: a path or command; blank finds one |
 | Local load time limit (s) | 120 | Longest the local files may take to load when a run starts |
 | Local call time limit (s) | 60 | Longest one `remote_execute()` call may take on the laptop |
+| Reload changed files before each run | On | Each Run first reads the added files again (see Use, step 4) |
 
 The Pi server has its own limits, set when it is installed: the default time limit (`--max-seconds`) and the largest
 upload per run (`--max-upload-mb`). See [installation.md](installation.md).
