@@ -24,6 +24,9 @@ Before you start:
   - The run takes a few minutes. The app stops runs after its time limit (Settings), 300 seconds unless changed;
     raise it for squares larger than about 2 m.
   - Press Stop (Esc) at any time: the robot stops, and the map of what it has seen so far is still drawn.
+  - If the robot runs into something and its motors stall, it stops mapping, marks the spot on the map with a red X,
+    and draws what it has so far. (The RVR works out its position from its wheels, so a robot pushing against
+    something with its treads slipping would think it is still moving; stopping keeps that error out of the map.)
 
 What to expect: the distance sensor sees a cone about 27 degrees wide, not a thin line, so edges look rounded and
 thin things (chair legs) look wider than they are. More stops, or a smaller SCAN_STEP_DEGREES, give a fuller map.
@@ -75,6 +78,10 @@ POINTS_FILE = "/tmp/room_map_points.csv"
 PICTURE_FILE = "/tmp/room_map.png"
 
 
+class Stalled(Exception):
+    """The RVR reported that a motor stalled: it ran into something it cannot push."""
+
+
 # =================================================================================================================
 # The robot. Headings are in degrees, clockwise from the direction the robot faced at the start (0 = forward,
 # 90 = right). Positions are in meters from the start: x to the right, y forward.
@@ -96,6 +103,7 @@ class RealRobot:
         self.start_yaw = None
         self.yaw_sign = 1               # +1 when the RVR's yaw counts counterclockwise (checked at the start)
         self.move_done = threading.Event()
+        self.stalled = threading.Event()
 
         try:
             self._start(QwiicVL53L1X, RvrStreamingServices, SpheroRvrObserver)
@@ -116,6 +124,8 @@ class RealRobot:
         self.rvr.reset_locator_x_and_y()        # and where it is now is (0, 0)
         time.sleep(0.1)
         self.rvr.on_xy_position_drive_result_notify(handler=lambda response: self.move_done.set())
+        self.rvr.enable_motor_stall_notify(is_enabled=True)
+        self.rvr.on_motor_stall_notify(handler=self._on_stall)
         self.rvr.sensor_control.add_sensor_data_handler(service=RvrStreamingServices.locator,
                                                         handler=self._on_locator)
         self.rvr.sensor_control.add_sensor_data_handler(service=RvrStreamingServices.imu, handler=self._on_imu)
@@ -144,6 +154,16 @@ class RealRobot:
         self.yaw_sign = 1 if change < 0 else -1
         self.turn_to(0)
 
+    def _on_stall(self, data):
+        """Called by the SDK when a motor stalls (is_triggered True) or recovers (False)."""
+        if data.get("is_triggered"):
+            self.stalled.set()
+
+    def _stop_if_stalled(self):
+        if self.stalled.is_set():
+            self.rvr.raw_motors(0, 0, 0, 0)
+            raise Stalled()
+
     def _on_locator(self, data):
         self.x = data["Locator"]["X"]
         self.y = data["Locator"]["Y"]
@@ -162,6 +182,7 @@ class RealRobot:
         while time.monotonic() < deadline and close_readings < 3:
             self.rvr.drive_with_heading(0, int(round(heading)) % 360, 0)     # speed 0: turn without driving
             time.sleep(0.1)
+            self._stop_if_stalled()
             if angle_between(self.pose()[2], heading) <= TURN_TOLERANCE_DEGREES:
                 close_readings += 1
             else:
@@ -176,8 +197,13 @@ class RealRobot:
         self.rvr.drive_to_position_si(
             yaw_angle=-bearing(here_x, here_y, x, y),       # the RVR counts angles counterclockwise
             x=x, y=y, linear_speed=DRIVE_SPEED_MPS, flags=0)
-        if not self.move_done.wait(timeout=5 + 3 * distance / DRIVE_SPEED_MPS):
-            print("  (the move did not report finishing; carrying on from where the robot is)")
+        deadline = time.monotonic() + 5 + 3 * distance / DRIVE_SPEED_MPS
+        while not self.move_done.is_set():
+            self._stop_if_stalled()
+            if deadline < time.monotonic():
+                print("  (the move did not report finishing; carrying on from where the robot is)")
+                break
+            time.sleep(0.05)
         time.sleep(SETTLE_SECONDS)
 
     def distance_mm(self):
@@ -372,7 +398,7 @@ def save_points(readings):
                                  "%.3f" % hit_x, "%.3f" % hit_y])
 
 
-def draw(readings, visited, size):
+def draw(readings, visited, size, stalled_at=None):
     passes, hits = build_map(readings, size)
     # 0.5 = not seen (gray), 1 = free (white), 0 = something there (black). A cell counts as "something there" when
     # it was hit at least half as often as the beam saw through it (the wide beam sees through many cells near a hit).
@@ -393,6 +419,9 @@ def draw(readings, visited, size):
     axes.scatter(hit_x, hit_y, s=6, color="tab:red", label="measured points")
     path_x, path_y = zip(*visited)
     axes.plot(path_x, path_y, "-o", color="tab:blue", markersize=5, label="robot stops and path")
+    if stalled_at is not None:
+        axes.plot([path_x[-1], stalled_at[0]], [path_y[-1], stalled_at[1]], ":", color="tab:blue")
+        axes.plot(*stalled_at, "x", color="red", markersize=12, markeredgewidth=3, label="ran into something")
     axes.annotate("start", (0, 0), textcoords="offset points", xytext=(6, -12), color="tab:blue")
     axes.annotate("", xy=(0, 0.25), xytext=(0, 0), arrowprops={"arrowstyle": "->", "color": "tab:blue"})
     axes.set_xlim(-half, half)
@@ -437,6 +466,7 @@ def main():
 
     readings = []
     visited = []
+    stalled_at = None
     robot = None
     try:
         robot = SimulatedRobot() if "--simulate" in sys.argv else RealRobot()
@@ -461,6 +491,11 @@ def main():
             print("Returning to the start.")
             robot.drive_to(0, 0)
             visited.append(robot.pose()[:2])
+    except Stalled:
+        stalled_at = robot.pose()[:2]
+        print("The robot ran into something at (%.2f, %.2f) and a motor stalled; mapping stopped there."
+              % stalled_at)
+        print("Move the robot away from it by hand. The map shows what was mapped before, and a red X where it hit.")
     except KeyboardInterrupt:
         print("Stopped by the Stop button (Ctrl+C); drawing what was mapped so far.")
     finally:
@@ -471,7 +506,7 @@ def main():
         print("No readings, so there is no map.")
         return
     save_points(readings)
-    draw(readings, visited or [(0.0, 0.0)], size)
+    draw(readings, visited or [(0.0, 0.0)], size, stalled_at)
     seen = sum(1 for reading in readings if reading[3] is not None)
     print("%d readings, %d of them hit something. Saved %s and %s." % (len(readings), seen, PICTURE_FILE,
                                                                       POINTS_FILE))

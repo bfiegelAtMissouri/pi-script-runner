@@ -9,6 +9,11 @@ reset: X to the right and Y forward, as the robot faced at the reset. Its IMU re
   3. Prints where it thinks it is at each corner, and how far it is from where it was told to go.
   4. Draws the path it reported as rvr_position.png (shown in the app, and saved in /tmp).
 
+It also asks the RVR to report a motor stall: when the robot runs into something it cannot push, the motor stops
+turning and the RVR says so. The example then stops the square and marks the spot on the picture with a red X. Try
+it by putting a heavy box in the robot's way. (If the treads slip instead of stalling, the RVR does not notice: it
+works out its position from its wheels, so it thinks it is still moving. Compare the picture with the floor.)
+
 Put a mark on the floor where the robot starts. When it finishes, compare where it really stopped with where it
 thinks it is: the difference is drift. It grows with distance and with turning, so the position is good for meters,
 not for a long run around a room.
@@ -49,6 +54,12 @@ position = {"x": 0.0, "y": 0.0}
 yaw = {"degrees": 0.0}
 track = []                      # every reported position, for the picture
 arrived = threading.Event()     # set when the RVR reports it reached a target position
+stalled = threading.Event()     # set when the RVR reports that a motor stalled
+stalled_at = []                 # where it was then
+
+
+class Stalled(Exception):
+    """A motor stalled: the robot ran into something it cannot push."""
 
 
 def on_locator(data):
@@ -68,6 +79,12 @@ def on_arrived(response):
     arrived.set()
 
 
+def on_stall(data):
+    """Called by the SDK when a motor stalls (is_triggered True) or recovers (False)."""
+    if data["is_triggered"]:
+        stalled.set()
+
+
 def drive_to(x, y, facing):
     """
     Drives to (x, y) in meters and ends up facing a direction: degrees counterclockwise from the start, the way the
@@ -76,8 +93,16 @@ def drive_to(x, y, facing):
     arrived.clear()
     rvr.drive_to_position_si(yaw_angle=facing, x=x, y=y, linear_speed=SPEED_MPS, flags=0)
     distance = math.hypot(x - position["x"], y - position["y"])
-    if not arrived.wait(timeout=5 + 3 * distance / SPEED_MPS):
-        print("  (no arrival report; carrying on)")
+    deadline = time.monotonic() + 5 + 3 * distance / SPEED_MPS
+    while not arrived.is_set():
+        if stalled.is_set():
+            rvr.raw_motors(0, 0, 0, 0)
+            stalled_at.append((position["x"], position["y"]))
+            raise Stalled()
+        if deadline < time.monotonic():
+            print("  (no arrival report; carrying on)")
+            break
+        time.sleep(0.05)
     time.sleep(0.3)                     # one more position report after stopping
     missed_cm = 100 * math.hypot(x - position["x"], y - position["y"])
     print("Target (%5.2f, %5.2f)   reported (%5.2f, %5.2f) m   heading %6.1f degrees   %4.1f cm from the target"
@@ -91,6 +116,8 @@ def draw(corners):
     path_x, path_y = zip(*track)
     axes.plot(path_x, path_y, color="tab:blue", label="reported by the RVR")
     axes.plot(path_x[-1], path_y[-1], "o", color="tab:blue")
+    for x, y in stalled_at:
+        axes.plot(x, y, "x", color="red", markersize=12, markeredgewidth=3, label="motor stalled")
     axes.annotate("start", (0, 0), textcoords="offset points", xytext=(6, -12))
     axes.set_aspect("equal")
     axes.margins(0.15)
@@ -113,6 +140,8 @@ try:
     time.sleep(0.1)
 
     rvr.on_xy_position_drive_result_notify(handler=on_arrived)
+    rvr.enable_motor_stall_notify(is_enabled=True)
+    rvr.on_motor_stall_notify(handler=on_stall)
     rvr.sensor_control.add_sensor_data_handler(service=RvrStreamingServices.locator, handler=on_locator)
     rvr.sensor_control.add_sensor_data_handler(service=RvrStreamingServices.imu, handler=on_imu)
     rvr.sensor_control.start(interval=SENSOR_INTERVAL_MS)
@@ -124,6 +153,8 @@ try:
     print("Back at the start, the RVR thinks it is %.1f cm from where it began."
           % (100 * math.hypot(position["x"], position["y"])))
 
+except Stalled:
+    print("A motor stalled at (%.2f, %.2f) m: the robot ran into something. Square stopped." % stalled_at[-1])
 except KeyboardInterrupt:
     print("Stopped by the Stop button (Ctrl+C)")
 
