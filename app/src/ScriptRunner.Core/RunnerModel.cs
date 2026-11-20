@@ -61,9 +61,10 @@ public interface IRunnerConnection : IAsyncDisposable
     /// <summary>True from a successful <see cref="StartAsync"/> until the <see cref="ExitedEvent"/>.</summary>
     bool IsRunning { get; }
 
-    /// <summary>Uploads the files and starts <paramref name="mainFile"/>. Throws <see cref="RunnerException"/>
-    /// with a message for the user when the run cannot start.</summary>
-    Task StartAsync(IReadOnlyList<RunFile> files, string mainFile, CancellationToken cancellationToken = default);
+    /// <summary>Uploads the files and starts <paramref name="mainFile"/> with <paramref name="arguments"/> (its
+    /// sys.argv[1:]). Throws <see cref="RunnerException"/> with a message for the user when the run cannot start.</summary>
+    Task StartAsync(IReadOnlyList<RunFile> files, string mainFile, IReadOnlyList<string>? arguments = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Sends one line to the script's input() (a newline is added).</summary>
     Task SendInputAsync(string line, CancellationToken cancellationToken = default);

@@ -35,7 +35,8 @@ public sealed class HttpRunnerConnection : IRunnerConnection
 
     public bool IsRunning => running;
 
-    public async Task StartAsync(IReadOnlyList<RunFile> files, string mainFile, CancellationToken cancellationToken = default)
+    public async Task StartAsync(IReadOnlyList<RunFile> files, string mainFile, IReadOnlyList<string>? arguments = null,
+        CancellationToken cancellationToken = default)
     {
         var fileArray = new JsonArray();
         foreach (RunFile file in files)
@@ -47,6 +48,10 @@ public sealed class HttpRunnerConnection : IRunnerConnection
             });
         }
         var body = new JsonObject { ["files"] = fileArray, ["main"] = mainFile, ["max_seconds"] = maxSeconds };
+        if (arguments is { Count: > 0 })
+        {
+            body["args"] = new JsonArray(arguments.Select(argument => (JsonNode)JsonValue.Create(argument)).ToArray());
+        }
         JsonNode reply = await PostAsync("api/run", body, cancellationToken).ConfigureAwait(false);
 
         runId = reply["run"]?.GetValue<string>() ?? throw new RunnerException("The Pi gave an unexpected reply.");

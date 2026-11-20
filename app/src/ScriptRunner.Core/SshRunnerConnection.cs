@@ -53,7 +53,8 @@ public sealed class SshRunnerConnection : IRunnerConnection
 
     public bool IsRunning => running;
 
-    public async Task StartAsync(IReadOnlyList<RunFile> files, string mainFile, CancellationToken cancellationToken = default)
+    public async Task StartAsync(IReadOnlyList<RunFile> files, string mainFile, IReadOnlyList<string>? arguments = null,
+        CancellationToken cancellationToken = default)
     {
         if (running)
         {
@@ -76,7 +77,7 @@ public sealed class SshRunnerConnection : IRunnerConnection
             }
             Upload(HelperName, ReadResource(HelperName));
             Upload(ShimName, ReadResource(ShimName));
-            Upload(RunScriptName, Encoding.UTF8.GetBytes(RunScript(main)));
+            Upload(RunScriptName, Encoding.UTF8.GetBytes(RunScript(main, arguments ?? Array.Empty<string>())));
         }
         catch (SshException error)
         {
@@ -452,10 +453,11 @@ public sealed class SshRunnerConnection : IRunnerConnection
     /// The shell script that runs the user's script. The markers around the output are split by quotes here, so
     /// only printf's output contains them, never an echoed command.
     /// </summary>
-    internal static string RunScript(string main) =>
+    internal static string RunScript(string main, IReadOnlyList<string> arguments) =>
         "printf '%s\\n' '@@runner-ssh-''start'\n" +
         $"cd \"$HOME/{RemoteDirectory}\" || exit 1\n" +
-        $"flock -n -E {Protocol.LockBusyExitCode} {Protocol.LockFile} python3 -u {ShimName} {ShellQuote(main)}\n" +
+        $"flock -n -E {Protocol.LockBusyExitCode} {Protocol.LockFile} python3 -u {ShimName} {ShellQuote(main)}" +
+        string.Concat(arguments.Select(argument => " " + ShellQuote(argument))) + "\n" +
         "printf '\\n%s%s\\n' '@@runner-ssh-''exit ' \"$?\"\n";
 
     private void Execute(string command)

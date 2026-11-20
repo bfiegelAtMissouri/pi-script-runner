@@ -61,7 +61,7 @@ public sealed class ConnectionTests
         var settings = new ConnectionSettings(ConnectionMode.Http, "127.0.0.1", server.Port, "", "0000");
         await using var connection = new HttpRunnerConnection(settings);
         var error = await Assert.ThrowsAsync<RunnerException>(
-            () => connection.StartAsync(new[] { Script("a.py", "print(1)") }, "a.py", TestContext.Current.CancellationToken));
+            () => connection.StartAsync(new[] { Script("a.py", "print(1)") }, "a.py", cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal("Wrong PIN.", error.Message);
     }
 
@@ -81,7 +81,7 @@ public sealed class ConnectionTests
         Assert.SkipWhen(settings is null, "SCRIPT_RUNNER_TEST_SSH_* environment variables are not set");
         await using var connection = new SshRunnerConnection(settings! with { Secret = settings.Secret + "x" }, new MemoryHostKeys());
         var error = await Assert.ThrowsAsync<RunnerException>(
-            () => connection.StartAsync(new[] { Script("a.py", "print(1)") }, "a.py", TestContext.Current.CancellationToken));
+            () => connection.StartAsync(new[] { Script("a.py", "print(1)") }, "a.py", cancellationToken: TestContext.Current.CancellationToken));
         Assert.Contains("did not accept", error.Message, StringComparison.Ordinal);
     }
 
@@ -94,7 +94,7 @@ public sealed class ConnectionTests
         keys.Remember(settings!.Host, settings.Port, "SHA256:not-the-real-key");
         await using var connection = new SshRunnerConnection(settings, keys);
         var error = await Assert.ThrowsAsync<RunnerException>(
-            () => connection.StartAsync(new[] { Script("a.py", "print(1)") }, "a.py", TestContext.Current.CancellationToken));
+            () => connection.StartAsync(new[] { Script("a.py", "print(1)") }, "a.py", cancellationToken: TestContext.Current.CancellationToken));
         Assert.Contains("has changed", error.Message, StringComparison.Ordinal);
     }
 
@@ -110,11 +110,45 @@ public sealed class ConnectionTests
         await connection.StartAsync(new[]
         {
             Script("loop.py", "import time\ntry:\n    while True:\n        time.sleep(0.2)\nfinally:\n    print('FINALLY ran')\n"),
-        }, "loop.py", TestContext.Current.CancellationToken);
+        }, "loop.py", cancellationToken: TestContext.Current.CancellationToken);
         ExitedEvent exited = await log.WaitForExitAsync(TimeSpan.FromSeconds(15));
         Assert.True(exited.Stopped);
         Assert.Contains("Time limit of 2 s", log.Notices, StringComparison.Ordinal);
         Assert.Contains("FINALLY ran", log.Output, StringComparison.Ordinal);
+    }
+
+    /// <summary>Arguments that a shell would change if they were not quoted: spaces, quotes, $, ;, *, and \.</summary>
+    private static readonly string[] AwkwardArguments = { "2.0", "--simulate", "two words", "it's", "say \"hi\"", "$HOME;ls *", "back\\slash", "" };
+
+    private const string PrintArguments = "import json, sys\nprint('ARGS ' + json.dumps(sys.argv[1:]))\n";
+
+    [Fact]
+    public async Task SshPassesArgumentsExactly()
+    {
+        ConnectionSettings? settings = SshSettings();
+        Assert.SkipWhen(settings is null, "SCRIPT_RUNNER_TEST_SSH_* environment variables are not set");
+        await using var connection = new SshRunnerConnection(settings!, new MemoryHostKeys());
+        await AssertArgumentsArriveAsync(connection);
+    }
+
+    [Fact]
+    public async Task HttpPassesArgumentsExactly()
+    {
+        string? python = FindPython();
+        Assert.SkipWhen(python is null, "python3 is not installed");
+        using var server = PiServer.Start(python!, TestPin);
+        await using var connection = new HttpRunnerConnection(new ConnectionSettings(ConnectionMode.Http, "127.0.0.1", server.Port, "", TestPin));
+        await AssertArgumentsArriveAsync(connection);
+    }
+
+    private static async Task AssertArgumentsArriveAsync(IRunnerConnection connection)
+    {
+        var log = new EventLog(connection);
+        await connection.StartAsync(new[] { Script("args.py", PrintArguments) }, "args.py", AwkwardArguments,
+            TestContext.Current.CancellationToken);
+        await log.WaitForExitAsync(TimeSpan.FromSeconds(15));
+        string line = log.Output.Split('\n').Single(l => l.StartsWith("ARGS ", StringComparison.Ordinal)).TrimEnd('\r');
+        Assert.Equal(AwkwardArguments, System.Text.Json.JsonSerializer.Deserialize<string[]>(line["ARGS ".Length..]));
     }
 
     [Fact]
@@ -127,7 +161,7 @@ public sealed class ConnectionTests
         await connection.StartAsync(new[]
         {
             Script("loop.py", "import time\nprint('looping', flush=True)\nwhile True:\n    time.sleep(0.2)\n"),
-        }, "loop.py", TestContext.Current.CancellationToken);
+        }, "loop.py", cancellationToken: TestContext.Current.CancellationToken);
         await log.WaitForOutputAsync("looping");
         await Task.Delay(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
         Assert.True(connection.IsRunning);
@@ -146,7 +180,7 @@ public sealed class ConnectionTests
         await connection.StartAsync(new[]
         {
             Script("loop.py", "import time\ntry:\n    while True:\n        time.sleep(0.2)\nfinally:\n    print('FINALLY ran')\n"),
-        }, "loop.py", TestContext.Current.CancellationToken);
+        }, "loop.py", cancellationToken: TestContext.Current.CancellationToken);
         ExitedEvent exited = await log.WaitForExitAsync(TimeSpan.FromSeconds(20));
         Assert.True(exited.Stopped);
         Assert.Contains("Time limit", log.Notices, StringComparison.Ordinal);
@@ -209,7 +243,7 @@ public sealed class ConnectionTests
                 "print('Press any key to continue...', flush=True)\n" +
                 "input()\n" +
                 "try:\n    time.sleep(60)\nfinally:\n    print('finally ran')\n"),
-        }, "sdk_like.py", TestContext.Current.CancellationToken);
+        }, "sdk_like.py", cancellationToken: TestContext.Current.CancellationToken);
         await log.WaitForOutputAsync("Press any key to continue...");
         await connection.StopAsync(TestContext.Current.CancellationToken);
         ExitedEvent exited = await log.WaitForExitAsync(TimeSpan.FromSeconds(15));
@@ -240,7 +274,7 @@ public sealed class ConnectionTests
         {
             Script("stubborn.py", "import signal, time\nsignal.signal(signal.SIGINT, signal.SIG_IGN)\n" +
                                   "print('ignoring Ctrl+C', flush=True)\nwhile True:\n    time.sleep(0.2)\n"),
-        }, "stubborn.py", TestContext.Current.CancellationToken);
+        }, "stubborn.py", cancellationToken: TestContext.Current.CancellationToken);
         await log.WaitForOutputAsync("ignoring Ctrl+C");
 
         CommandResult result = await PiCommand.RunAsync(settings!, keys, PiCommand.ForceStopAllPython,
@@ -257,7 +291,7 @@ public sealed class ConnectionTests
         await connection.StartAsync(new[]
         {
             Script("plain.py", "import time\nprint('looping', flush=True)\nwhile True:\n    time.sleep(0.2)\n"),
-        }, "plain.py", TestContext.Current.CancellationToken);
+        }, "plain.py", cancellationToken: TestContext.Current.CancellationToken);
         await log.WaitForOutputAsync("looping");
         await connection.StopAsync(TestContext.Current.CancellationToken);
         ExitedEvent exited = await log.WaitForExitAsync(TimeSpan.FromSeconds(15));
@@ -281,7 +315,7 @@ public sealed class ConnectionTests
             Script("loop.py",
                 "import time\ntry:\n    print('looping', flush=True)\n    while True:\n        time.sleep(0.2)\n" +
                 "finally:\n    open('finally.txt', 'w').write('motors stopped')\n"),
-        }, "loop.py", TestContext.Current.CancellationToken);
+        }, "loop.py", cancellationToken: TestContext.Current.CancellationToken);
         await log.WaitForOutputAsync("looping");
 
         await connection.DisposeAsync();                 // the connection drops without pressing Stop
@@ -302,7 +336,7 @@ public sealed class ConnectionTests
         byte[] dot = File.ReadAllBytes(Path.Combine(RepoRoot(), "tests", "data", "dot.png"));
         string tmpCopy = $"/tmp/script_runner_test_{Guid.NewGuid():N}.png";      // play() and show() also accept /tmp
         string script = SessionScript.Replace("TMP_COPY", tmpCopy, StringComparison.Ordinal);
-        await connection.StartAsync(new[] { Script("square.py", script), new RunFile("dot.png", dot) }, "square.py", cancel);
+        await connection.StartAsync(new[] { Script("square.py", script), new RunFile("dot.png", dot) }, "square.py", cancellationToken: cancel);
 
         await log.WaitForOutputAsync("Enter speed: ");
         await connection.SendInputAsync("30", cancel);

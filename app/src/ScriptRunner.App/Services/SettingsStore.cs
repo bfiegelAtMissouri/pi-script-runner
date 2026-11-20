@@ -41,6 +41,34 @@ public sealed class SettingsStore : IHostKeyStore
 
     public void SetBool(string name, bool value) => Update(() => data[name] = value);
 
+    /// <summary>The command-line arguments saved for a script (by its file name), or "".</summary>
+    public string GetScriptArguments(string script)
+    {
+        lock (gate)
+        {
+            return data["scriptArguments"] is JsonObject all && all[script] is JsonValue value &&
+                   value.TryGetValue(out string? text) ? text : "";
+        }
+    }
+
+    /// <summary>Saves the command-line arguments for a script; "" removes them.</summary>
+    public void SetScriptArguments(string script, string text) => Update(() =>
+    {
+        if (data["scriptArguments"] is not JsonObject all)
+        {
+            all = new JsonObject();
+            data["scriptArguments"] = all;
+        }
+        if (0 == text.Length)
+        {
+            all.Remove(script);
+        }
+        else
+        {
+            all[script] = text;
+        }
+    });
+
     public string? Find(string host, int port)
     {
         lock (gate)

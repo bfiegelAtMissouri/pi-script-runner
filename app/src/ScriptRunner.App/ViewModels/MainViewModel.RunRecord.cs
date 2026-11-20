@@ -24,7 +24,7 @@ public sealed partial class MainViewModel
 
     public bool HasRunRecord => recordStarted is not null;
 
-    private void StartRecord(ConnectionSettings target, string script)
+    private void StartRecord(ConnectionSettings target, string script, IReadOnlyList<string> arguments)
     {
         recordLines.Clear();
         recordPartial.Clear();
@@ -36,6 +36,10 @@ public sealed partial class MainViewModel
         heading.AppendLine($"Started:  {recordStarted:yyyy-MM-dd HH:mm:ss}");
         heading.AppendLine($"Robot:    {target.Host} ({(ConnectionMode.Ssh == target.Mode ? "SSH" : "HTTP")}, user {target.User})");
         heading.AppendLine($"Script:   {script}");
+        if (0 < arguments.Count)
+        {
+            heading.AppendLine($"Arguments: {ScriptArguments.Show(arguments)}");
+        }
         heading.AppendLine("Files:    " + string.Join(", ", RecordFiles.Select(f => f.Name + (f.IsLocal ? " (Local)" : ""))));
         recordHeading = heading.ToString();
         OnPropertyChanged(nameof(HasRunRecord));

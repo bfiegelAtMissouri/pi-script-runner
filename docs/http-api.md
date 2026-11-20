@@ -32,12 +32,16 @@ Uploads files and starts a script. Body:
     {"name": "beep.wav",  "data": "<base64>"}
   ],
   "main": "square.py",
-  "max_seconds": 600
+  "max_seconds": 600,
+  "args": ["2.0", "--simulate"]
 }
 ```
 
 `max_seconds` is optional: the run's time limit in seconds, from 0 (no limit) to 86400. Without it, the run uses
 the server's `--max-seconds` default.
+
+`args` is optional: the script's command-line arguments (its `sys.argv[1:]`), a list of strings of at most 4096
+characters in all. They are passed to Python directly, not through a shell, so no quoting is needed.
 
 | Response | Meaning |
 | :--- | :--- |

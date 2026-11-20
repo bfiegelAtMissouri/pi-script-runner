@@ -102,6 +102,12 @@
           <TextBlock Grid.Row="7" Grid.Column="2" Text="Longest one remote_execute() call may take on the laptop"
                      VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
         </Grid>
+        <TextBlock Text="{Binding ArgumentsLabel}" FontWeight="SemiBold" Margin="0,8,0,0" />
+        <TextBox Text="{Binding ScriptArgumentsText}" IsEnabled="{Binding CanSetArguments}"
+                 FontFamily="Consolas, Menlo, monospace" PlaceholderText="none, for example: 2.0 --simulate"
+                 AutomationProperties.Name="{Binding ArgumentsLabel}" />
+        <TextBlock TextWrapping="Wrap" Opacity="0.75"
+                   Text="Passed to the script each time it runs, as sys.argv[1:]. Separate them with spaces; put quotes around one that contains spaces. Each script keeps its own; the output's first line shows them when there are some." />
         <CheckBox IsChecked="{Binding ReloadBeforeRun}" Content="Reload changed files before each run"
                   ToolTip.Tip="Each Run first reads the added files again, so edits saved in another editor are what runs" />
         <TextBlock Text="Diagnostics" FontWeight="SemiBold" Margin="0,8,0,0" />

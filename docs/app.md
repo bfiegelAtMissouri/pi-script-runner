@@ -89,6 +89,13 @@ that is not allowed is reported and the previous one stays in effect. **Restore 
 | Local load time limit (s) | 120 | Longest the local files may take to load when a run starts |
 | Local call time limit (s) | 60 | Longest one `remote_execute()` call may take on the laptop |
 | Reload changed files before each run | On | Each Run first reads the added files again (see Use, step 4) |
+| Arguments for *script* | none | Command-line arguments for the script selected in the **Run:** list (see below) |
+
+**Arguments for *script*** passes command-line arguments to the script on every run, as `sys.argv[1:]`, in both
+modes. Separate them with spaces, and put quotes around one that contains spaces: `2.0 --simulate "two words"`. Each
+script (by file name) keeps its own arguments, and they are kept when the app closes. They are not on the main screen,
+since they rarely change; when a script has some, the first line of its output shows them, for example
+`[Arguments: 2.0 --simulate]`, and **Save run…** records them. **Restore defaults** leaves them as they are.
 
 The Pi server has its own limits, set when it is installed: the default time limit (`--max-seconds`) and the largest
 upload per run (`--max-upload-mb`). See [installation.md](installation.md).

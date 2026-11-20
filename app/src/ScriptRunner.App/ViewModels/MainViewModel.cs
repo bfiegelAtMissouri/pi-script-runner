@@ -289,6 +289,11 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             return;
         }
+        IReadOnlyList<string>? arguments = ArgumentsForRun(SelectedScript!);
+        if (arguments is null)
+        {
+            return;
+        }
         IReadOnlyList<string> reloaded = Array.Empty<string>();
         if (ReloadBeforeRun)
         {
@@ -323,12 +328,16 @@ public sealed partial class MainViewModel : ViewModelBase
             ClearOutput();
             ClearErrorReport();
             ClearPlot();
-            StartRecord(wanted, SelectedScript!);
+            StartRecord(wanted, SelectedScript!, arguments);
             if (0 < reloaded.Count)
             {
                 Append("[Reloaded the changed files: " + string.Join(", ", reloaded) + "]\n");
-                ShowOutput();
             }
+            if (0 < arguments.Count)
+            {
+                Append("[Arguments: " + ScriptArguments.Show(arguments) + "]\n");
+            }
+            ShowOutput();
             StatusText = "Connecting…";
             IsRunning = true;
             List<RunFile> files = Files.Where(f => !f.IsLocal).Select(f => new RunFile(f.Name, f.Data)).ToList();
@@ -336,7 +345,7 @@ public sealed partial class MainViewModel : ViewModelBase
                                 $"{Files.Count(f => f.IsLocal)} local files, time limit {wanted.MaxSeconds} s");
             await StartLocalFunctionsAsync(Files.Where(f => f.IsLocal).Select(f => new RunFile(f.Name, f.Data)).ToList());
             StatusText = "Connecting…";
-            await connection.StartAsync(files, SelectedScript!);
+            await connection.StartAsync(files, SelectedScript!, arguments);
             SaveRememberedSecret();
         }
         catch (RunnerException error)

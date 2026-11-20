@@ -31,6 +31,7 @@ from urllib.parse import parse_qs, urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MAX_TIME_LIMIT_SECONDS = 24 * 60 * 60    # longest time limit a run may ask for
+MAX_ARGS_CHARS = 4096                   # most characters of command-line arguments a run may pass
 RUN_ROOT = os.path.join(os.path.expanduser("~"), "script_runner_runs")
 # play() and show() may also use files here, for scripts that save their photos and sounds in /tmp.
 SHARED_MEDIA_DIR = "/tmp"
@@ -138,7 +139,7 @@ class Runner:
     def is_busy(self):
         return self.current is not None and not self.current.finished
 
-    def start(self, files, main_name, max_seconds=None):
+    def start(self, files, main_name, max_seconds=None, args=()):
         with self.lock:
             if self.is_busy():
                 return None, "A script is already running on this Pi. Stop it first."
@@ -165,7 +166,7 @@ class Runner:
         env["PYTHONPATH"] = HERE + os.pathsep + env.get("PYTHONPATH", "")
         try:
             run.proc = subprocess.Popen(
-                [sys.executable, "-u", main_name],
+                [sys.executable, "-u", main_name] + list(args),
                 cwd=run_dir, env=env,
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 preexec_fn=_prepare_child,
@@ -358,7 +359,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "max_seconds must be a whole number from 0 (no limit) to %d."
                                           % MAX_TIME_LIMIT_SECONDS})
                 return
-        run, error = self.runner.start(files, main_name, max_seconds)
+        args = body.get("args", [])
+        if not isinstance(args, list) or not all(isinstance(arg, str) and "\0" not in arg for arg in args) \
+                or MAX_ARGS_CHARS < sum(len(arg) for arg in args):
+            self._json(400, {"error": "args must be a list of strings (%d characters at most in all)." % MAX_ARGS_CHARS})
+            return
+        run, error = self.runner.start(files, main_name, max_seconds, args)
         if error:
             self._json(409, {"error": error})
         else:

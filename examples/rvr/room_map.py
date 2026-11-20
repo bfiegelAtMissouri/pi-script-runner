@@ -14,7 +14,8 @@ The picture, room_map.png, shows:
 It is shown in the app, and saved in /tmp with room_map_points.csv (every measured point, for your own analysis).
 
 Run it:
-  From the app:  press Run and type the size when asked (Enter for the default).
+  From the app:  press Run and type the size when asked (Enter for the default), or give it in Settings,
+                 "Arguments for room_map.py" (for example 2.0), so it is not asked each time.
   Over SSH:      type room_map.py | ssh pi@<robot> "python3 - 2.0"        (2.0 = a 2 m square)
   No robot:      python3 room_map.py 2.0 --simulate                       (a pretend room, on any computer)
 

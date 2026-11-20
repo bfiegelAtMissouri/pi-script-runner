@@ -150,6 +150,11 @@ class ServerTests(unittest.TestCase):
         status, _ = self.post("/api/run", {"files": [encode("a.py", "print(1)")], "main": "b.py"})
         self.assertEqual(400, status)
 
+    def test_bad_args_are_rejected(self):
+        for args in ("2.0", [2.0], ["a\0b"], ["x" * 5000]):
+            status, _ = self.post("/api/run", {"files": [encode("a.py", "print(1)")], "main": "a.py", "args": args})
+            self.assertEqual(400, status, args)
+
     def test_full_session(self):
         """Prompt, input, say/show, media, one-run lock, and Stop running finally:."""
         with open(os.path.join(REPO, "tests", "data", "dot.png"), "rb") as handle:

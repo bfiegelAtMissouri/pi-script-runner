@@ -171,3 +171,55 @@ public sealed class StudentHelpTests
         Directory.Delete(settingsFolder, true);
     }
 }
+
+public sealed class ScriptArgumentsTests
+{
+    [Theory]
+    [InlineData("", new string[0])]
+    [InlineData("  2.0   --simulate ", new[] { "2.0", "--simulate" })]
+    [InlineData("\"two words\" 'it''s' x", new[] { "two words", "its", "x" })]
+    [InlineData("\"say \\\"hi\\\"\" 'a\\b' c\\ d", new[] { "say \"hi\"", "a\\b", "c d" })]
+    [InlineData("\"\" ''", new[] { "", "" })]
+    [InlineData("a\"b c\"d", new[] { "ab cd" })]
+    public void SplitsLikeACommandLine(string text, string[] expected) =>
+        Assert.Equal(expected, ScriptArguments.Split(text));
+
+    [Theory]
+    [InlineData("\"open")]
+    [InlineData("'open")]
+    [InlineData("two\nlines")]
+    public void RefusesWhatCannotBeACommandLine(string text) =>
+        Assert.Throws<FormatException>(() => ScriptArguments.Split(text));
+
+    [Fact]
+    public void ShowsArgumentsSoTheyReadBackTheSame()
+    {
+        string[] arguments = { "2.0", "two words", "say \"hi\"", "a\\b", "" };
+        Assert.Equal(arguments, ScriptArguments.Split(ScriptArguments.Show(arguments)));
+        Assert.Equal("2.0 --simulate", ScriptArguments.Show(new[] { "2.0", "--simulate" }));
+    }
+
+    [Fact]
+    public void ArgumentsAreKeptForEachScript()
+    {
+        string settingsFolder = Directory.CreateTempSubdirectory("script-runner-args").FullName;
+        var platform = new ScriptRunner.App.Services.PlatformServices(new UiTests.RecordingSpeech(), new UiTests.SilentAudio(),
+            new ScriptRunner.App.Services.NoSecretStore(), settingsFolder);
+        var model = new MainViewModel(platform);
+        model.AddFiles(new[] { ("room_map.py", new byte[] { 0x23 }), ("other.py", new byte[] { 0x23 }) });
+        model.SelectedScript = "room_map.py";
+        model.ScriptArgumentsText = "2.0 --simulate";
+        model.SelectedScript = "other.py";
+        Assert.Equal("", model.ScriptArgumentsText);
+        model.ScriptArgumentsText = "\"unclosed";
+        Assert.Contains("not closed", model.SettingsError, StringComparison.Ordinal);
+        model.SelectedScript = "room_map.py";
+        Assert.Equal("2.0 --simulate", model.ScriptArgumentsText);
+        Assert.Equal("Arguments for room_map.py", model.ArgumentsLabel);
+
+        var again = new MainViewModel(platform);                      // kept for the next start
+        again.AddFiles(new[] { ("room_map.py", new byte[] { 0x23 }) });
+        Assert.Equal("2.0 --simulate", again.ScriptArgumentsText);
+        Directory.Delete(settingsFolder, true);
+    }
+}
