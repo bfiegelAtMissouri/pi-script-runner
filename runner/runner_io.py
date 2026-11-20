@@ -23,36 +23,57 @@ With the app, a script can also call Python functions that run on the laptop:
     seen = remote_execute("detect", shared_runner_file("/tmp/view.jpg"), 0.5)
 
 The functions are in .py files added in the app with "Local" checked. See remote_execute().
+
+On a computer, install this module (pip install runner-io, from this project; see docs/runner-io.md) so editors
+such as VS Code can complete these names and show this help. Scripts still run on the Pi, where the app or the
+runner provides the module.
 """
 import json
 import os
 import sys
+from typing import Any, Dict
+
+__version__ = "2026.11.20"
+__all__ = ["say", "play", "show", "plot", "remote_execute", "shared_runner_file", "RemoteExecutionError"]
 
 TAG = "@@runner "
 
 
-def _send(kind, value):
+def _send(kind: str, value: object) -> None:
     text = str(value).replace("\r", " ").replace("\n", " ")
     sys.stdout.write("%s%s %s\n" % (TAG, kind, text))
     sys.stdout.flush()
 
 
-def say(text):
-    """Speak text through the laptop's speakers."""
+def say(text: object) -> None:
+    """
+    Speak text through the laptop's speakers, for example say("Turning left").
+
+    It returns at once, without waiting for the speech; several calls are spoken in order.
+    """
     _send("say", text)
 
 
-def play(filename):
-    """Play a sound file (.wav, .mp3, .ogg) on the laptop."""
+def play(filename: str) -> None:
+    """
+    Play a sound file (.wav, .mp3, .ogg) on the laptop, for example play("beep.wav").
+
+    The file must be in the script's folder (added with it, or made by the script) or in /tmp.
+    """
     _send("play", filename)
 
 
-def show(filename):
-    """Send a file to the laptop: images are displayed, text files previewed, and any file can be saved there."""
+def show(filename: str) -> None:
+    """
+    Send a file to the laptop, for example show("/tmp/photo.jpg"): images are displayed, text files previewed,
+    and any file can be saved there.
+
+    The file must be in the script's folder (added with it, or made by the script) or in /tmp.
+    """
     _send("show", filename)
 
 
-def plot(*values, **named_values):
+def plot(*values: float, **named_values: float) -> None:
     """
     Purpose: add numbers to the app's live graph, one point per call for each name
     Inputs:  named_values - numbers to plot, each with its own line, for example plot(distance=d, light=l)
@@ -87,7 +108,7 @@ class RemoteExecutionError(Exception):
 _next_call_id = [0]
 
 
-def shared_runner_file(path):
+def shared_runner_file(path: str) -> Dict[str, str]:
     """
     Purpose: mark an argument of remote_execute() as a file on the Pi to send to the laptop
     Inputs:  path - a file in the script's folder, or an absolute path in /tmp
@@ -96,7 +117,7 @@ def shared_runner_file(path):
     return {"__shared_runner_file__": str(path)}
 
 
-def remote_execute(function_name, *args):
+def remote_execute(function_name: str, *args: Any) -> Any:
     """
     Purpose: call a function defined in one of the app's local files, and wait for its result
     Inputs:  function_name - the function's name, as a string, for example "detect"

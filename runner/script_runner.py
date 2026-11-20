@@ -339,8 +339,8 @@ class Handler(BaseHTTPRequestHandler):
         total = 0
         for item in body.get("files", []):
             name = os.path.basename(str(item.get("name", "")))
-            if not name or name.startswith("."):
-                continue
+            if not name or name.startswith(".") or "runner_io.py" == name:
+                continue                    # the runner's own runner_io is used, never an uploaded copy
             data = base64.b64decode(item.get("data", ""))
             total += len(data)
             files.append((name, data))

@@ -150,6 +150,13 @@ class ServerTests(unittest.TestCase):
         status, _ = self.post("/api/run", {"files": [encode("a.py", "print(1)")], "main": "b.py"})
         self.assertEqual(400, status)
 
+    def test_uploaded_runner_io_is_not_used(self):
+        script = "import runner_io\nprint('FROM', 'copy' if hasattr(runner_io, 'FAKE') else 'runner')\n"
+        events, thread = self.start_run(
+            [encode("a.py", script), encode("runner_io.py", "FAKE = 1\n")], "a.py")
+        self.wait_for(events, "FROM runner")
+        thread.join(10)
+
     def test_bad_args_are_rejected(self):
         for args in ("2.0", [2.0], ["a\0b"], ["x" * 5000]):
             status, _ = self.post("/api/run", {"files": [encode("a.py", "print(1)")], "main": "a.py", "args": args})

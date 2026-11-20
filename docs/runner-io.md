@@ -41,6 +41,34 @@ Speech is queued: several `say()` calls in a row are spoken in order. `say()`
 returns immediately, so the script does not wait for speech to finish; add a
 `time.sleep()` if the timing matters.
 
+## Completion and help in your editor
+
+Editors such as VS Code, PyCharm, and Thonny look up `from runner_io import say` in the Python on your computer. If
+`runner_io` is not installed there, the import is underlined as missing and the editor offers no completion or help
+for it. The script still runs on the robot either way: the app and the runner provide `runner_io` there.
+
+To get completion and help, install `runner_io` into the Python your editor uses. Download
+`runner_io-<version>-py3-none-any.whl` from the same Releases page as the app, then, in a terminal in the folder
+where you saved it:
+
+```bash
+python -m pip install runner_io-<version>-py3-none-any.whl     # Windows: py -m pip install ...
+```
+
+Use the file's full name in place of `runner_io-<version>-py3-none-any.whl`. Without a release file, install it from
+a copy of the repository (on GitHub, **Code > Download ZIP**, then unzip it):
+
+```bash
+python -m pip install <repository folder>/runner
+```
+
+- In VS Code, the Python it uses is the one shown in the status bar (**Python: Select Interpreter** changes it).
+  Install into that one; if the project uses a virtual environment, install into the environment.
+- On a computer where installing for everyone is not allowed, add `--user` after `install`.
+- To update, install the newer file the same way.
+- Without installing anything, a copy of `runner_io.py` in the same folder as the script also works for the editor.
+  Adding that copy in the app does no harm: the app always sends its own `runner_io` to the robot.
+
 ## Local functions (app only)
 
 `remote_execute()` calls a Python function that runs on the laptop, and waits for its result. The functions are

@@ -1,0 +1,21 @@
+# Packages runner_io (only that module from this folder) so it can be installed on a computer, where editors use it
+# for completion and help. Each app release includes it as a wheel; to install from a copy of the repository instead:
+#     python -m pip install <repository folder>/runner
+# The Pi does not need this: the app and the runner server provide runner_io to every script they run.
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "runner-io"
+dynamic = ["version"]
+description = "say(), play(), show(), plot(), and remote_execute() for scripts run with Pi Script Runner"
+requires-python = ">=3.7"
+license = "MIT"
+license-files = []
+
+[tool.setuptools]
+py-modules = ["runner_io"]
+
+[tool.setuptools.dynamic]
+version = { attr = "runner_io.__version__" }

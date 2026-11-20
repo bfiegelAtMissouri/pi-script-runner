@@ -20,6 +20,7 @@ Download the file for your computer from the repository's **Releases** page.
 | `ScriptRunner-Mac-AppleSilicon.zip` | Macs with an M-series chip | Unzip, move **Script Runner** to Applications, then open it with right-click > **Open** and confirm. On recent macOS versions, if it is still blocked, open **System Settings > Privacy & Security** and choose **Open Anyway**. |
 | `ScriptRunner-Mac-Intel.zip` | Macs with an Intel chip | As above |
 | `ScriptRunner-Android.apk` | Android 7 or newer | Open the file on the phone and allow installing apps from that source when Android asks. |
+| `runner_io-<version>-py3-none-any.whl` | The Python on a student's computer | Not an app: install it with pip so editors complete `say()`, `show()`, `plot()`, and the rest, and show their help. See [runner-io.md](runner-io.md#completion-and-help-in-your-editor). |
 
 The apps are not signed with a paid developer certificate, which is why each system asks for confirmation the
 first time. Nothing needs to be installed besides the app itself.
@@ -234,8 +235,9 @@ app/
   tests/ScriptRunner.Tests   Tests (xUnit v3)
 ```
 
-Every push to GitHub runs all the tests. Every push to `main` also builds the Windows, Mac, and Android files and
-publishes them as a release named for the build date and time. Nothing needs to be built on your own computer.
+Every push to GitHub runs all the tests. Every push to `main` also builds the Windows, Mac, and Android files and the
+`runner_io` package, and publishes them as a release named for the build date and time. The package's version is
+that same date and time (pip writes 07:04 as `704`, for example `2026.1120.704`). Nothing needs to be built on your own computer.
 
 To build or test locally, install the .NET 10 SDK, then from the `app` folder:
 

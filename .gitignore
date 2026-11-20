@@ -20,3 +20,8 @@ publish/
 *.keystore
 *.jks
 android-signing-secrets.txt
+
+# Python package builds (runner/pyproject.toml)
+build/
+dist/
+*.egg-info/

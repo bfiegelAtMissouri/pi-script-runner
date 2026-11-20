@@ -3,8 +3,8 @@
 # Every push, and every press of "Run workflow" on the Actions tab:
 #   1. runs the Pi server's Python tests and the app's C# tests (the C# tests include real SSH sessions against an
 #      SSH server started on the runner, with a random password generated for that run only);
-#   2. on main (or "Run workflow"), builds the Windows program, the Mac app (Apple Silicon and Intel), and the
-#      Android app;
+#   2. on main (or "Run workflow"), builds the Windows program, the Mac app (Apple Silicon and Intel), the
+#      Android app, and the runner_io package for students' computers (a wheel, for editor completion and help);
 #   3. on main, publishes them as a GitHub release named for the build date and time: the Windows and Mac job
 #      creates the release, and the Android job adds its file to it. (The files go straight to the release rather
 #      than through workflow artifacts, so the account's artifact storage quota never blocks a release.)
@@ -45,6 +45,16 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Run tests
         run: python -m unittest discover -s tests -v
+      - name: Check the runner_io package (builds, holds only runner_io, installs, and imports)
+        run: |
+          python -m pip wheel --no-deps -w "$RUNNER_TEMP/wheel" runner/
+          python -m zipfile -l "$RUNNER_TEMP"/wheel/runner_io-*.whl | tee "$RUNNER_TEMP/wheel.txt"
+          if grep -E "script_runner|install_service|index.html" "$RUNNER_TEMP/wheel.txt"; then
+            echo "::error::The runner_io package holds files other than runner_io.py."; exit 1
+          fi
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install "$RUNNER_TEMP"/wheel/runner_io-*.whl
+          cd "$RUNNER_TEMP" && "$RUNNER_TEMP/venv/bin/python" -c "import runner_io; print(runner_io.__version__, runner_io.__all__)"
 
   app-tests:
     name: App tests
@@ -119,9 +129,16 @@ jobs:
         run: dotnet publish app/src/ScriptRunner.Desktop -p:PublishProfile=Mac-AppleSilicon-arm64 -p:RcodesignCommand="$RCODESIGN"
       - name: Build the Mac app (Intel)
         run: dotnet publish app/src/ScriptRunner.Desktop -p:PublishProfile=Mac-Intel-x64 -p:RcodesignCommand="$RCODESIGN"
+      - name: Build the runner_io package (version = the build's date and time, as the app's)
+        run: |
+          mkdir -p "$RUNNER_TEMP/runner_io"
+          cp runner/runner_io.py runner/pyproject.toml "$RUNNER_TEMP/runner_io/"
+          sed -i "s/^__version__ = .*/__version__ = \"$(date +%Y.%m%d.%H%M)\"/" "$RUNNER_TEMP/runner_io/runner_io.py"
+          python3 -m pip wheel --no-deps -w "$RUNNER_TEMP/wheel" "$RUNNER_TEMP/runner_io"
       - name: Collect the files
         run: |
           mkdir -p "$RUNNER_TEMP/out"
+          cp "$RUNNER_TEMP"/wheel/runner_io-*.whl "$RUNNER_TEMP/out/"
           cp app/publish/win-x64/ScriptRunner.exe "$RUNNER_TEMP/out/ScriptRunner-Windows.exe"
           cp app/publish/osx-arm64/ScriptRunner-mac.zip "$RUNNER_TEMP/out/ScriptRunner-Mac-AppleSilicon.zip"
           cp app/publish/osx-x64/ScriptRunner-mac.zip "$RUNNER_TEMP/out/ScriptRunner-Mac-Intel.zip"
@@ -133,7 +150,9 @@ jobs:
         run: |
           stamp=$(date +"%Y-%m-%d %H:%M")
           tag="app-$(date +%Y%m%d-%H%M)"
+          wheel=$(basename "$RUNNER_TEMP"/out/runner_io-*.whl)
           notes="Script Runner app built $stamp (Central time) from commit ${GITHUB_SHA::7}. All tests passed. The Android app (ScriptRunner-Android.apk) is added a few minutes after the release appears; if it is missing, see the Android job in this run's log."
+          notes+=$'\n\n'"$wheel is the runner_io module for students' computers, so editors such as VS Code complete say(), show(), plot(), and the rest and show their help. Download it and install it into the Python the editor uses: pip install $wheel (see docs/runner-io.md). The Pi does not need it."
           gh release create "$tag" "$RUNNER_TEMP"/out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Script Runner $stamp" --notes "$notes"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
