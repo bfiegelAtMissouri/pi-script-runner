@@ -108,7 +108,9 @@ timer can fail to stop when a drive starts within a few seconds of the end of a 
 `robot_api/robot_api.py` wraps the robot's hardware in one `Robot` class with simple commands (`drive`, `stop`,
 `set_all_led`, `set_individual_led`, `read_distance`, `read_ambient_light`, `read_floor_color_name`,
 `setOLED_two_lines`, `take_picture`, `cleanup`), so student scripts do not call the Sphero SDK or the sensor
-libraries directly. Students add `robot_api.py` together with their script; both are copied to the Pi for each
+libraries directly. `read_distance()` returns millimeters, or `None` when the sensor has no trustworthy reading
+(usually because nothing is in range), so check for `None` before using the number. Students add `robot_api.py`
+together with their script; both are copied to the Pi for each
 run. The runner itself knows nothing about it, so each student's copy can be changed without affecting anyone else.
 `Robot(simulation=True)` runs a script without hardware, printing what the robot would do and asking for sensor
 values.

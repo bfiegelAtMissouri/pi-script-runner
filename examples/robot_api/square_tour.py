@@ -26,11 +26,14 @@ try:
         robot.drive(SPEED, heading, SECONDS_PER_SIDE)
 
         floor = robot.read_floor_color_name()
-        distance_cm = robot.read_distance() / 10
+        distance = robot.read_distance()        # None when nothing is in range
         photo = robot.take_picture("/tmp/corner_%d.jpg" % (side + 1))
         show(photo)
-        say("Corner %d. The floor is %s, and the nearest thing ahead is %d centimeters away."
-            % (side + 1, floor, distance_cm))
+        if distance is None:
+            ahead = "nothing is in range ahead"
+        else:
+            ahead = "the nearest thing ahead is %d centimeters away" % (distance / 10)
+        say("Corner %d. The floor is %s, and %s." % (side + 1, floor, ahead))
         robot.wait(2)                   # time for the speech before driving on
 
     robot.setOLED("Tour complete")

@@ -123,13 +123,16 @@ def distance_mm():
     """
     Purpose: read one distance from the distance sensor
     Inputs:  nothing (ranging must already be started)
-    Returns: the distance in millimeters
+    Returns: the distance in millimeters, or None when nothing is in range
     """
     while not tof.check_for_data_ready():
         time.sleep(0.005)
     distance = tof.get_distance()
+    # The sensor always gives a number; its range status says whether to trust it (0 = valid). With nothing in
+    # range the status is a failure and the number is meaningless.
+    status = tof.get_range_status()
     tof.clear_interrupt()
-    return distance
+    return distance if 0 == status else None
 
 
 # ---- Outputs -------------------------------------------------------------------
@@ -210,13 +213,14 @@ def explore(mission):
         if was_dark != is_dark:                            # the room got darker or lighter
             was_dark = is_dark
             set_lights(mission)
-        distance = distance_mm()
-        if distance < OBSTACLE_MM:
+        distance = distance_mm()                           # None: nothing in range, so the way is clear
+        if distance is not None and distance < OBSTACLE_MM:
             handle_obstacle(mission, distance)
             continue
         rvr.drive_with_heading(DRIVE_SPEED, mission.heading, NO_FLAGS)
         seconds_left = MISSION_SECONDS - mission.seconds_elapsed()
-        show_status("Exploring  %3d s left" % seconds_left, "Ahead: %d cm" % (distance // 10))
+        ahead = "Ahead: clear" if distance is None else "Ahead: %d cm" % (distance // 10)
+        show_status("Exploring  %3d s left" % seconds_left, ahead)
         time.sleep(LOOP_SECONDS)
 
 

@@ -243,9 +243,20 @@ class Robot:
         )
 
     def read_distance(self):
-        """Take one VL53L1X reading and return distance in millimeters."""
+        """
+        Take one VL53L1X reading and return the distance in millimeters, or None when the sensor has no trustworthy
+        reading: usually because nothing is in range, so the light it sends out does not come back strongly enough.
+        Check for None before using the number, for example:
+
+            distance = robot.read_distance()
+            if distance is None:
+                print("Nothing in range")
+            elif distance < 300:
+                print("Close!")
+        """
         if self.simulation_mode:
-            return float(input("Enter simulated distance in millimeters: "))
+            text = input("Enter simulated distance in millimeters (Enter for nothing in range): ").strip()
+            return float(text) if text else None
         if self.distance_sensor is None:
             raise RuntimeError("This Robot was started without a distance sensor.")
 
@@ -258,8 +269,11 @@ class Robot:
                     raise RuntimeError("No reading from the distance sensor.")
                 time.sleep(0.005)
             distance = self.distance_sensor.get_distance()
+            # The sensor always gives a number; its range status says whether to trust it (0 = valid). With nothing
+            # in range the status is a failure and the number is meaningless.
+            status = self.distance_sensor.get_range_status()
             self.distance_sensor.clear_interrupt()
-            return float(distance)
+            return float(distance) if 0 == status else None
         finally:
             self.distance_sensor.stop_ranging()
 

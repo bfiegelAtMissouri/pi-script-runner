@@ -18,12 +18,13 @@ try:
     light2 = robot.read_ambient_light()
     light = (light1 + light2) / 2
 
-    print("Distance:", distance)
+    distance_text = "nothing in range" if distance is None else "%d mm" % distance
+    print("Distance:", distance_text)
     print("Ambient light:", light)
 
     robot.setOLED_two_lines(
         "Distance:",
-        str(distance)
+        distance_text
     )
     time.sleep(3)                       # time to read the screen before cleanup clears it
 
