@@ -25,6 +25,12 @@
       "needs": "Nothing"
     },
     {
+      "script": "drawing/drawing_save_load.py",
+      "group": "Getting started",
+      "shows": "Saving a drawing and carrying on in a later run: draw.save(), draw.load(), clear(), remove(), a background color, and sending room.json to the laptop",
+      "needs": "Nothing"
+    },
+    {
       "script": "rvr/rvr_square.py",
       "group": "RVR",
       "shows": "Driving a square with spoken updates and a safe stop",

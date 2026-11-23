@@ -79,6 +79,7 @@ cleans up when you press Stop (motors off, camera closed, sensors stopped).
 | `hello_input.py` | Keyboard input, Stop, and `finally:` | Nothing |
 | `speak_play_show.py` | `say()`, `play()`, and `show()` (add `beep.wav` with it) | Nothing |
 | `drawing/drawing_demo.py` | Drawing a map with `draw`: a room, a pretend robot moving along its path, markers of every shape, and the picture saved as an SVG file | Nothing |
+| `drawing/drawing_save_load.py` | Saving a drawing and carrying on in a later run: `draw.save()`, `draw.load()`, blanking and reloading the canvas, `remove()`, a background color, and sending `room.json` to the laptop to add with the script next time | Nothing |
 | `rvr/rvr_square.py` | Driving a square with spoken updates and a safe stop | Sphero RVR |
 | `rvr/rvr_square_photos.py` | Driving a square and showing a photo taken at each corner | Sphero RVR, Pi camera |
 | `rvr/color_detection.py` | Reading the color under the robot and saying the strongest of red, green, and blue | Sphero RVR |

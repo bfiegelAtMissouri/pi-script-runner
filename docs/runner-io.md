@@ -113,7 +113,12 @@ draw.save(MAP)
 They also work within one run: `draw.save("/tmp/before.json")`, then `draw.clear()` for a blank canvas (add
 `draw.canvas()` to reset its settings too), then later `draw.load("/tmp/before.json")` to bring the saved drawing back.
 
-For a later run, save somewhere that lasts: the script's own folder is emptied at the start of each run, and `/tmp` when the Pi
+To keep a drawing with the student rather than on the robot, send it to the laptop and add it with the script next
+time: `show(draw.save("/tmp/room.json"))` sends it (save it from its card in the app, or with its Save link in the
+browser page), and a `room.json` added with the script is put next to it on the Pi, so `draw.load("room.json")`
+finds it. The example `drawing/drawing_save_load.py` works this way.
+
+To keep a drawing on the robot for a later run, save somewhere that lasts: the script's own folder is emptied at the start of each run, and `/tmp` when the Pi
 restarts. `save()` makes the folder if it is missing. The file is JSON, so a script can also read it. `load()` checks
 every shape as it was checked when first drawn, and raises `ValueError` (naming the shape) for a file that is not a
 saved drawing.
