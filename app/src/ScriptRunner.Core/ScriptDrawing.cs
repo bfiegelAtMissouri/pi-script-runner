@@ -21,6 +21,9 @@ public sealed record DrawShape(string Op, IReadOnlyList<(double X, double Y)> Po
 
     /// <summary>A sector's inner radius (0 for a wedge from its point).</summary>
     public double Inner { get; init; }
+
+    /// <summary>From 0 (invisible) to 1 (solid).</summary>
+    public double Opacity { get; init; } = 1;
 }
 
 /// <summary>A runner_io draw message.</summary>
@@ -119,8 +122,8 @@ public abstract record DrawCommand
         {
             return null;
         }
-        double width = Number("width", 2), size = Number("size", "text" == op ? 14 : 10);
-        if (!double.IsFinite(width) || !double.IsFinite(size))
+        double width = Number("width", 2), size = Number("size", "text" == op ? 14 : 10), opacity = Number("opacity", 1);
+        if (!double.IsFinite(width) || !double.IsFinite(size) || !double.IsFinite(opacity))
         {
             return null;
         }
@@ -132,6 +135,7 @@ public abstract record DrawCommand
             Direction = direction,
             Spread = spread,
             Inner = "sector" == op ? inner : 0,
+            Opacity = Math.Clamp(opacity, 0, 1),
         };
     }
 
@@ -394,7 +398,7 @@ public sealed class ScriptDrawing
         }
         foreach (DrawShape shape in shapes)
         {
-            ShapeSvg(shape, frame, Line);
+            ShapeSvg(shape, frame, element => Line(WithOpacity(element, shape.Opacity)));
         }
         svg.Append("</svg>\n");
         return svg.ToString();
@@ -441,6 +445,22 @@ public sealed class ScriptDrawing
                 line($"<circle cx=\"{F(frame.X(shape.X))}\" cy=\"{F(frame.Y(shape.Y))}\" r=\"{F(shape.R * frame.Scale)}\" fill=\"{shape.Fill}\" {stroke}/>");
                 break;
         }
+    }
+
+    /// <summary>An SVG element with an opacity attribute added when it is see-through, as runner_io adds it.</summary>
+    private static string WithOpacity(string element, double opacity)
+    {
+        if (1 <= opacity)
+        {
+            return element;
+        }
+        string attribute = $" opacity=\"{F(opacity, 3)}\"";
+        if (element.EndsWith("/>", StringComparison.Ordinal))
+        {
+            return element[..^2] + attribute + "/>";
+        }
+        int at = element.IndexOf('>', StringComparison.Ordinal);       // <text ...>words</text>
+        return element[..at] + attribute + element[at..];
     }
 
     /// <summary>The point <paramref name="radius"/> away from (x, y) in a compass direction (0 up, clockwise).</summary>

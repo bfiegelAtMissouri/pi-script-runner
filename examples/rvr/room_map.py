@@ -7,9 +7,13 @@ sensor. It then drives to the next stop, if the way there is clear, and scans ag
 left off the map, so a large classroom is not mapped end to end.
 
 The app draws the map as the robot works (with runner_io's draw), beside the output:
-  light blue  the sensor's cone while the robot scans, drawn out to the distance measured
+  blue        the sensor's cone at each measurement while the robot scans, drawn out to the distance measured.
+              The cones are see-through, so where they overlap (seen more often) the blue is darker; the latest
+              cone is outlined.
   red arcs    each distance measured: the sensor says how far the nearest thing in its cone is, not where in the
               cone, so the thing is somewhere on the arc
+  With --lines instead: a see-through line along the middle of each cone, and a red dot where it hit. Compare the two
+  to see how much the cone's width matters.
   white       space the sensor saw through (free)
   black       where the sensor hit something (a wall, a chair leg, a box)
   gray        not seen
@@ -23,6 +27,7 @@ Run it:
   From the app:  press Run and type the size when asked (Enter for the default), or give it in Settings,
                  "Arguments for room_map.py" (for example 2.0), so it is not asked each time.
   No robot:      add --simulate (in Settings, "Arguments for room_map.py": 2.0 --simulate) for a pretend room.
+  Lines:         add --lines to draw each measurement as a line instead of a cone (for example 2.0 --simulate --lines).
                  On a computer with runner_io installed (see docs/runner-io.md): python3 room_map.py 2.0 --simulate
 
 Before you start:
@@ -88,12 +93,16 @@ SECONDS_PER_DIRECTION = 0.7     # used only for the time estimate printed at the
 UNSEEN_COLOR = "lightgray"
 FREE_COLOR = "white"
 SOMETHING_COLOR = "black"
-BEAM_COLOR = "lightskyblue"
+BEAM_COLOR = "dodgerblue"
+BEAM_OPACITY = 0.12             # see-through, so overlapping cones build up
+LINE_OPACITY = 0.5
 BEAM_EDGE_COLOR = "steelblue"
 HIT_COLOR = "red"
 PATH_COLOR = "royalblue"
 ROBOT_COLOR = "darkorange"
 GRID_COLOR = "silver"
+
+LINES = "--lines" in sys.argv   # lines of sight instead of cones (see the top of the file)
 
 POINTS_FILE = "/tmp/room_map_points.csv"
 MAP_FILE = "/tmp/room_map.svg"
@@ -482,18 +491,28 @@ def draw_grid(size):
 
 def draw_reading(reading, size):
     """
-    One measurement as the sensor saw it: its cone (BEAM_DEGREES wide) out to the distance measured, and a red arc
-    at that distance, because the sensor says how far the nearest thing in the cone is, not where in the cone. The
-    cone is drawn with a name, so only the latest one shows; the arcs stay.
+    One measurement as the sensor saw it. With cones (the default): its cone (BEAM_DEGREES wide) out to the distance
+    measured, see-through, and a red arc at that distance, because the sensor says how far the nearest thing in the
+    cone is, not where in the cone. With --lines: a line along the middle of the cone, and a red dot where it hit.
+    Cones and lines stop at the square's edge.
     """
     x, y, heading, mm = reading
     reach = (mm if mm is not None else LONGEST_MM) / 1000
+    point = hit_point(reading)
+    hit_inside = point is not None and inside(point, size)
+    if LINES:
+        length = min(reach, distance_to_edge(x, y, heading, size))
+        end_x, end_y = x + length * math.sin(math.radians(heading)), y + length * math.cos(math.radians(heading))
+        draw.line(x, y, end_x, end_y, color=BEAM_EDGE_COLOR, width=1, opacity=LINE_OPACITY)
+        if hit_inside:
+            draw.marker(point[0], point[1], shape="circle", size=5, color=HIT_COLOR)
+        return
     for side in (-BEAM_DEGREES / 2, 0, BEAM_DEGREES / 2):  # keep the cone's sides and middle inside the square
         reach = min(reach, distance_to_edge(x, y, heading + side, size))
     if 0 < reach:
-        draw.sector(x, y, reach, heading, BEAM_DEGREES, color=BEAM_EDGE_COLOR, fill=BEAM_COLOR, width=1, name="beam")
-    point = hit_point(reading)
-    if point is not None and inside(point, size):
+        draw.sector(x, y, reach, heading, BEAM_DEGREES, color="none", fill=BEAM_COLOR, opacity=BEAM_OPACITY)
+        draw.sector(x, y, reach, heading, BEAM_DEGREES, color=BEAM_EDGE_COLOR, width=1, name="latest cone")
+    if hit_inside:
         draw.arc(x, y, mm / 1000, heading, BEAM_DEGREES, color=HIT_COLOR, width=2)
 
 

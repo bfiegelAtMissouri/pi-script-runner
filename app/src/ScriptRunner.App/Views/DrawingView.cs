@@ -112,6 +112,34 @@ public sealed class DrawingView : Control
 
     private void DrawShape(DrawingContext context, DrawShape shape, DrawingFrame frame)
     {
+        if (shape.Opacity <= 0)
+        {
+            return;
+        }
+        if ("marker" == shape.Op && shape.Opacity < 1)
+        {
+            foreach ((double x, double y) in shape.Points)          // each see-through, as in the SVG
+            {
+                using (context.PushOpacity(shape.Opacity))
+                {
+                    DrawMarker(context, shape.Marker, frame.X(x), frame.Y(y), shape.Size, BrushFor(shape.Color));
+                }
+            }
+            return;
+        }
+        if (shape.Opacity < 1)
+        {
+            using (context.PushOpacity(shape.Opacity))
+            {
+                DrawSolidShape(context, shape, frame);
+            }
+            return;
+        }
+        DrawSolidShape(context, shape, frame);
+    }
+
+    private void DrawSolidShape(DrawingContext context, DrawShape shape, DrawingFrame frame)
+    {
         IBrush? color = BrushFor(shape.Color);
         if ("text" == shape.Op)
         {

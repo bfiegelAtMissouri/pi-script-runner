@@ -103,6 +103,19 @@ class DrawTests(unittest.TestCase):
                 messages(action)
             self.assertIn(words, str(caught.exception))
 
+    def test_opacity(self):
+        sent = messages(lambda: (self.draw.sector(0, 0, 1, 0, 27, fill="skyblue", opacity=0.2),
+                                 self.draw.marker(0, 0, opacity=1),
+                                 self.draw.text(0, 0, "A > B", opacity=3)))
+        self.assertEqual(0.2, sent[0]["opacity"])
+        self.assertNotIn("opacity", sent[1], "solid is the default and is not sent")
+        self.assertNotIn("opacity", sent[2], "kept from 0 to 1")
+        svg = self.draw.svg()
+        self.assertIn('stroke-linejoin="round" opacity="0.2"/>', svg)
+        self.assertIn('fill="black">A &gt; B</text>', svg)
+        with self.assertRaises(ValueError):
+            messages(lambda: self.draw.line(0, 0, 1, 1, opacity="half"))
+
     def test_background(self):
         messages(lambda: self.draw.marker(0, 0))
         self.assertNotIn("<rect", self.draw.svg(), "transparent unless a background is set")
@@ -119,7 +132,8 @@ class DrawTests(unittest.TestCase):
             self.draw.polyline([(0, 0), (1, 0.5), (2, 0)], color="royalblue", name="path")
             self.draw.text(0.1, 0.9, "kitchen & hall")
             self.draw.markers([(0.5, 0.5), (1.5, 0.5)], shape="x", color="red")
-            self.draw.sector(1, 0.5, 0.8, 300, 27, fill="lightskyblue", inner=0.1, angles="math", name="cone")
+            self.draw.sector(1, 0.5, 0.8, 300, 27, fill="lightskyblue", inner=0.1, angles="math", name="cone",
+                             opacity=0.25)
             self.draw.marker(1, 0.5, shape="triangle", name="robot")
         messages(make)
         with tempfile.TemporaryDirectory() as folder:

@@ -32,6 +32,10 @@ public sealed class DrawingTests
         draw.sector(0.3, 0.3, 1.1, 37.5, 27, color="steelblue", fill="lightskyblue", width=1)
         draw.sector(1.6, 0.4, 0.5, 200, 250, fill="bisque", inner=0.2, angles="math")
         draw.arc(0.3, 0.3, 0.8, 37.5, 200, color="red", width=3)
+        draw.sector(0.3, 0.3, 1.0, 80, 27, color="none", fill="lightskyblue", opacity=0.2)
+        draw.markers([(0.5, 1.2), (0.6, 1.25)], shape="triangle", color="green", opacity=0.45)
+        draw.text(0.5, 1.3, "faint <text>", opacity=0.3333)
+        draw.line(0, 2, 2, 0, opacity=0)
         draw.marker(1, 1, shape="triangle", color="blue", name="robot")
         draw.text(1, 1.1, "gone", name="label")
         draw.marker(1.25, 1.05, shape="triangle", color="blue", name="robot")
@@ -80,7 +84,7 @@ public sealed class DrawingTests
             drawing.Apply(item.Command);
         }
         Assert.Equal(File.ReadAllText(svg), drawing.ToSvg());
-        Assert.Equal("clear" == mode ? 1 : 18, drawing.Shapes.Count);
+        Assert.Equal("clear" == mode ? 1 : 22, drawing.Shapes.Count);
         Directory.Delete(work, true);
     }
 

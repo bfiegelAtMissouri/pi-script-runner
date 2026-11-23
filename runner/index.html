@@ -552,13 +552,14 @@
               direction: num("direction", 0), spread: num("spread", 0), inner: "sector" === c.op ? num("inner", 0) : 0,
               text: String(num("text", "")), color: checkColor(c.color, "black"), fill: checkColor(c.fill, "none"),
               width: num("width", 2), size: num("size", "text" === c.op ? 14 : 10), shape: String(num("shape", "circle")),
-              name: null == c.name ? null : String(c.name) };
-    if (![s.x, s.y, s.w, s.h, s.r, s.width, s.size, s.direction, s.spread, s.inner].every(finite) ||
+              name: null == c.name ? null : String(c.name), opacity: num("opacity", 1) };
+    if (![s.x, s.y, s.w, s.h, s.r, s.width, s.size, s.direction, s.spread, s.inner, s.opacity].every(finite) ||
         s.w < 0 || s.h < 0 || s.r < 0) { return null; }
     if (("sector" === c.op || "arc" === c.op) &&
         (s.spread <= 0 || 360 <= s.spread || s.inner < 0 || (0 < s.inner && s.r <= s.inner))) { return null; }
     if ("marker" === c.op && -1 === MARKER_SHAPES.indexOf(s.shape)) { return null; }
     s.width = clamp(s.width, 0.5, 50);
+    s.opacity = clamp(s.opacity, 0, 1);
     s.size = "text" === c.op ? clamp(s.size, 4, 96) : clamp(s.size, 2, 200);
     return s;
   }
@@ -613,6 +614,14 @@
       }
     }
     drawing.shapes.forEach(function (s) {
+      var before = out.length;
+      drawShapeSvg(s);
+      for (var i = before; i < out.length; ++i) { out[i] = withOpacity(out[i], s.opacity); }
+    });
+    out.push("</svg>");
+    return out.join("\n") + "\n";
+
+    function drawShapeSvg(s) {
       var c = s.color;
       if ("marker" === s.op) {
         s.points.forEach(function (p) { out.push(markerSvg(s.shape, X(p[0]), Y(p[1]), s.size, c)); });
@@ -639,9 +648,16 @@
       } else {
         out.push('<circle cx="' + fmt(X(s.x)) + '" cy="' + fmt(Y(s.y)) + '" r="' + fmt(s.r * k) + '" fill="' + s.fill + '" ' + stroke + "/>");
       }
-    });
-    out.push("</svg>");
-    return out.join("\n") + "\n";
+    }
+  }
+
+  // An SVG element with an opacity attribute added when it is see-through, as runner_io adds it.
+  function withOpacity(element, opacity) {
+    if (1 <= opacity) { return element; }
+    var attribute = ' opacity="' + fmt(opacity, 3) + '"';
+    if ("/>" === element.slice(-2)) { return element.slice(0, -2) + attribute + "/>"; }
+    var at = element.indexOf(">");
+    return element.slice(0, at) + attribute + element.slice(at);
   }
 
   // Sectors and arcs: directions in compass degrees (0 up, clockwise), as runner_io sends them.

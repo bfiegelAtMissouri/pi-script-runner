@@ -10,7 +10,7 @@ Things to notice:
   - canvas() fixes the part shown, so the view does not jump as the robot moves.
   - Sizes of rectangles and circles are in meters; marker sizes, line widths, and text sizes are in pixels.
   - Drawing with name="robot" replaces the earlier robot marker instead of adding another one.
-  - draw.sector() draws the pretend distance sensor's cone. Its direction here comes from math.atan2(), which counts
+  - draw.sector() draws the pretend distance sensor's cone, see-through (opacity=0.4) so the room shows through it. Its direction here comes from math.atan2(), which counts
     in math angles (0 to the right, counterclockwise), so the call says angles="math".
 """
 import math
@@ -72,8 +72,8 @@ def drive():
 
             draw.polyline(path, color="royalblue", width=2, name="path")                # the path so far
             facing = math.degrees(math.atan2(dy, dx))                                   # math angle of travel
-            draw.sector(x, y, SENSOR_REACH, facing, SENSOR_DEGREES, color="goldenrod", fill="lightyellow",
-                        width=1, name="sensor", angles="math")                          # what the sensor sees
+            draw.sector(x, y, SENSOR_REACH, facing, SENSOR_DEGREES, color="goldenrod", fill="gold", width=1,
+                        name="sensor", angles="math", opacity=0.4)                      # what the sensor sees
             draw.marker(x, y, shape="triangle", size=16, color="red", name="robot")      # where it is now
             plot(traveled_m=round(traveled, 2))
 

@@ -175,7 +175,7 @@ def _points(points: Iterable[Sequence[float]], fewest: int, what: str) -> List[L
 
 
 def _clamp(value: float, low: float, high: float) -> float:
-    return max(low, min(high, value))
+    return float(max(low, min(high, value)))
 
 
 def _format(value: float, places: int = 2) -> str:
@@ -263,6 +263,9 @@ class Drawing:
     A shape drawn with a name replaces the earlier shape with that name (and is drawn on top), which moves
     something, such as the robot's marker, without leaving copies behind.
 
+    Every shape also takes opacity, from 0 (invisible) to 1 (solid, the default), for example opacity=0.2 for a
+    see-through sensor cone: where see-through shapes overlap, the color builds up.
+
     Colors are names such as "red", "gray", or "steelblue" (the web's color names), "#RRGGBB", or "none".
 
     save_svg() saves the picture; save() saves the drawing itself, which a later run can load() and carry on.
@@ -325,25 +328,25 @@ class Drawing:
     # ---- Shapes ----
 
     def line(self, x1: float, y1: float, x2: float, y2: float, color: str = "black", width: float = 2,
-             name: Optional[str] = None) -> None:
+             name: Optional[str] = None, opacity: float = 1) -> None:
         """A straight line from (x1, y1) to (x2, y2). width is in pixels."""
         self._add({"op": "line", "points": _points([(x1, y1), (x2, y2)], 2, "line"),
-                   "color": _color(color, "color"), "width": self._width(width)}, name)
+                   "color": _color(color, "color"), "width": self._width(width)}, name, opacity)
 
     def polyline(self, points: Iterable[Sequence[float]], color: str = "black", width: float = 2,
-                 name: Optional[str] = None) -> None:
+                 name: Optional[str] = None, opacity: float = 1) -> None:
         """Lines joining the points in order, for example a path: polyline([(0, 0), (1, 0), (1, 1)])."""
         self._add({"op": "polyline", "points": _points(points, 2, "polyline"),
-                   "color": _color(color, "color"), "width": self._width(width)}, name)
+                   "color": _color(color, "color"), "width": self._width(width)}, name, opacity)
 
     def polygon(self, points: Iterable[Sequence[float]], color: str = "black", fill: str = "none",
-                width: float = 2, name: Optional[str] = None) -> None:
+                width: float = 2, name: Optional[str] = None, opacity: float = 1) -> None:
         """A closed shape through the points, outlined in color and filled with fill."""
         self._add({"op": "polygon", "points": _points(points, 3, "polygon"), "color": _color(color, "color"),
-                   "fill": _color(fill, "fill"), "width": self._width(width)}, name)
+                   "fill": _color(fill, "fill"), "width": self._width(width)}, name, opacity)
 
     def rect(self, x: float, y: float, w: float, h: float, color: str = "black", fill: str = "none",
-             width: float = 2, name: Optional[str] = None) -> None:
+             width: float = 2, name: Optional[str] = None, opacity: float = 1) -> None:
         """A rectangle w wide and h tall whose lower-left corner is (x, y)."""
         x, y, w, h = _number(x, "x"), _number(y, "y"), _number(w, "w"), _number(h, "h")
         if w < 0:
@@ -351,44 +354,44 @@ class Drawing:
         if h < 0:
             y, h = y + h, -h
         self._add({"op": "rect", "x": x, "y": y, "w": w, "h": h, "color": _color(color, "color"),
-                   "fill": _color(fill, "fill"), "width": self._width(width)}, name)
+                   "fill": _color(fill, "fill"), "width": self._width(width)}, name, opacity)
 
     def circle(self, x: float, y: float, r: float, color: str = "black", fill: str = "none", width: float = 2,
-               name: Optional[str] = None) -> None:
+               name: Optional[str] = None, opacity: float = 1) -> None:
         """A circle centered on (x, y) with radius r, in the drawing's units."""
         r = _number(r, "r")
         if r < 0:
             raise ValueError("r must not be negative")
         self._add({"op": "circle", "x": _number(x, "x"), "y": _number(y, "y"), "r": r,
-                   "color": _color(color, "color"), "fill": _color(fill, "fill"), "width": self._width(width)}, name)
+                   "color": _color(color, "color"), "fill": _color(fill, "fill"), "width": self._width(width)}, name, opacity)
 
     def text(self, x: float, y: float, text: object, color: str = "black", size: float = 14,
-             name: Optional[str] = None) -> None:
+             name: Optional[str] = None, opacity: float = 1) -> None:
         """Text starting at (x, y), which is the left end of the line the letters sit on. size is in pixels."""
         words = str(text).replace("\r", " ").replace("\n", " ")
         self._add({"op": "text", "x": _number(x, "x"), "y": _number(y, "y"), "text": words,
-                   "color": _color(color, "color"), "size": _clamp(_number(size, "size"), 4, 96)}, name)
+                   "color": _color(color, "color"), "size": _clamp(_number(size, "size"), 4, 96)}, name, opacity)
 
     def marker(self, x: float, y: float, shape: str = "circle", size: float = 10, color: str = "black",
-               name: Optional[str] = None) -> None:
+               name: Optional[str] = None, opacity: float = 1) -> None:
         """
         A marker centered on (x, y): shape is "circle", "square", "triangle", "diamond", "x", or "plus".
         size is its width in pixels.
         """
-        self.markers([(x, y)], shape, size, color, name)
+        self.markers([(x, y)], shape, size, color, name, opacity)
 
     def markers(self, points: Iterable[Sequence[float]], shape: str = "circle", size: float = 10,
-                color: str = "black", name: Optional[str] = None) -> None:
+                color: str = "black", name: Optional[str] = None, opacity: float = 1) -> None:
         """The same marker at each of the points, sent as one shape (faster than many marker() calls)."""
         shape = str(shape).strip().lower()
         if shape not in MARKER_SHAPES:
             raise ValueError("shape %r is not one of %s" % (shape, ", ".join(MARKER_SHAPES)))
         self._add({"op": "marker", "points": _points(points, 1, "markers"), "shape": shape,
-                   "size": _clamp(_number(size, "size"), 2, 200), "color": _color(color, "color")}, name)
+                   "size": _clamp(_number(size, "size"), 2, 200), "color": _color(color, "color")}, name, opacity)
 
     def sector(self, x: float, y: float, r: float, direction: float, spread: float, color: str = "black",
                fill: str = "none", width: float = 2, name: Optional[str] = None, inner: float = 0,
-               angles: str = "compass") -> None:
+               angles: str = "compass", opacity: float = 1) -> None:
         """
         Purpose: a wedge (a slice of a circle), for example what a distance sensor sees: its cone, seen from above
         Inputs:  x, y - the point of the wedge (where the sensor is)
@@ -406,10 +409,10 @@ class Drawing:
             raise ValueError("sector needs r >= 0 and, with inner, 0 <= inner < r")
         self._add({"op": "sector", "x": x, "y": y, "r": r, "inner": inner,
                    "direction": _compass(direction, angles), "spread": _spread(spread),
-                   "color": _color(color, "color"), "fill": _color(fill, "fill"), "width": self._width(width)}, name)
+                   "color": _color(color, "color"), "fill": _color(fill, "fill"), "width": self._width(width)}, name, opacity)
 
     def arc(self, x: float, y: float, r: float, direction: float, spread: float, color: str = "black",
-            width: float = 2, name: Optional[str] = None, angles: str = "compass") -> None:
+            width: float = 2, name: Optional[str] = None, angles: str = "compass", opacity: float = 1) -> None:
         """
         Purpose: part of a circle's edge, for example where something a distance sensor measured could be
         Inputs:  x, y - the circle's center; r - its radius, in the drawing's units
@@ -421,7 +424,7 @@ class Drawing:
             raise ValueError("r must not be negative")
         self._add({"op": "arc", "x": _number(x, "x"), "y": _number(y, "y"), "r": r,
                    "direction": _compass(direction, angles), "spread": _spread(spread),
-                   "color": _color(color, "color"), "width": self._width(width)}, name)
+                   "color": _color(color, "color"), "width": self._width(width)}, name, opacity)
 
     # ---- Files ----
 
@@ -496,26 +499,27 @@ class Drawing:
         name = shape.get("name")
         color = shape.get("color", "black")
         width = shape.get("width", 2)
+        opacity = shape.get("opacity", 1)
         if "line" == op:
             (x1, y1), (x2, y2) = shape["points"]
-            self.line(x1, y1, x2, y2, color, width, name)
+            self.line(x1, y1, x2, y2, color, width, name, opacity=opacity)
         elif "polyline" == op:
-            self.polyline(shape["points"], color, width, name)
+            self.polyline(shape["points"], color, width, name, opacity=opacity)
         elif "polygon" == op:
-            self.polygon(shape["points"], color, shape.get("fill", "none"), width, name)
+            self.polygon(shape["points"], color, shape.get("fill", "none"), width, name, opacity=opacity)
         elif "rect" == op:
-            self.rect(shape["x"], shape["y"], shape["w"], shape["h"], color, shape.get("fill", "none"), width, name)
+            self.rect(shape["x"], shape["y"], shape["w"], shape["h"], color, shape.get("fill", "none"), width, name, opacity=opacity)
         elif "circle" == op:
-            self.circle(shape["x"], shape["y"], shape["r"], color, shape.get("fill", "none"), width, name)
+            self.circle(shape["x"], shape["y"], shape["r"], color, shape.get("fill", "none"), width, name, opacity=opacity)
         elif "text" == op:
-            self.text(shape["x"], shape["y"], shape["text"], color, shape.get("size", 14), name)
+            self.text(shape["x"], shape["y"], shape["text"], color, shape.get("size", 14), name, opacity=opacity)
         elif "marker" == op:
-            self.markers(shape["points"], shape.get("shape", "circle"), shape.get("size", 10), color, name)
+            self.markers(shape["points"], shape.get("shape", "circle"), shape.get("size", 10), color, name, opacity=opacity)
         elif "sector" == op:
             self.sector(shape["x"], shape["y"], shape["r"], shape["direction"], shape["spread"], color,
-                        shape.get("fill", "none"), width, name, shape.get("inner", 0))
+                        shape.get("fill", "none"), width, name, shape.get("inner", 0), opacity=opacity)
         elif "arc" == op:
-            self.arc(shape["x"], shape["y"], shape["r"], shape["direction"], shape["spread"], color, width, name)
+            self.arc(shape["x"], shape["y"], shape["r"], shape["direction"], shape["spread"], color, width, name, opacity=opacity)
         else:
             raise ValueError("unknown shape %r" % op)
 
@@ -534,7 +538,7 @@ class Drawing:
             out.append('<rect width="%s" height="%s" fill="%s"/>' % (f(width), f(height), self._background))
         out.extend(self._grid_svg(frame))
         for shape in self._shapes:
-            out.extend(_shape_svg(shape, frame))
+            out.extend(_with_opacity(element, shape.get("opacity", 1)) for element in _shape_svg(shape, frame))
         out.append("</svg>")
         return "\n".join(out) + "\n"
 
@@ -544,7 +548,10 @@ class Drawing:
     def _width(width: float) -> float:
         return _clamp(_number(width, "width"), 0.5, 50)
 
-    def _add(self, shape: Dict[str, Any], name: Optional[str]) -> None:
+    def _add(self, shape: Dict[str, Any], name: Optional[str], opacity: float = 1) -> None:
+        opacity = _clamp(_number(opacity, "opacity"), 0, 1)
+        if opacity < 1:
+            shape["opacity"] = opacity
         if name is not None:
             shape["name"] = str(name)
             self._shapes = [old for old in self._shapes if old.get("name") != shape["name"]]
@@ -618,6 +625,17 @@ def _grid_lines(step: Optional[float], frame: _Frame) -> Optional[Tuple[List[flo
     if _MOST_GRID_LINES < last_x - first_x + 1 or _MOST_GRID_LINES < last_y - first_y + 1:
         return None
     return ([k * step for k in range(first_x, last_x + 1)], [k * step for k in range(first_y, last_y + 1)])
+
+
+def _with_opacity(element: str, opacity: float) -> str:
+    """An SVG element with an opacity attribute added when it is see-through."""
+    if 1 <= opacity:
+        return element
+    attribute = ' opacity="%s"' % _format(opacity, 3)
+    if element.endswith("/>"):
+        return element[:-2] + attribute + "/>"
+    at = element.index(">")                             # <text ...>words</text>
+    return element[:at] + attribute + element[at:]
 
 
 def _shape_svg(shape: Dict[str, Any], frame: _Frame) -> List[str]:

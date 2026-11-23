@@ -83,6 +83,10 @@ draw.arc(x, y, distance, heading, 27, color="red")                              
 draw.sector(x, y, 0.5, math.degrees(math.atan2(dy, dx)), 27, angles="math")       # a direction from atan2
 ```
 
+Every shape also takes `opacity`, from 0 (invisible) to 1 (solid, the default). `opacity=0.2` makes a shape
+see-through, for example a sensor's cone; where see-through shapes overlap, the color builds up, so areas seen more
+often look darker. Leave the things that are certainly there, such as the points a sensor hit, solid.
+
 Every shape also takes `name`. A shape drawn with a name replaces the earlier shape with that name and is drawn on
 top, which moves something, such as the robot, without leaving copies behind.
 
