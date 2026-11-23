@@ -61,6 +61,8 @@ both ways, so a square looks square.
 | `draw.rect(x, y, w, h, color, fill, width)` | A rectangle `w` wide and `h` tall whose lower-left corner is `(x, y)` |
 | `draw.circle(x, y, r, color, fill, width)` | A circle with radius `r` |
 | `draw.text(x, y, text, color, size)` | Text whose line starts at `(x, y)` |
+| `draw.sector(x, y, r, direction, spread, color, fill, width, inner=0, angles="compass")` | A wedge from `(x, y)` out to radius `r`, centered on `direction` and `spread` degrees wide (more than 0, less than 360), for example a distance sensor's cone. With `inner` it starts that far out instead (a band) |
+| `draw.arc(x, y, r, direction, spread, color, width, angles="compass")` | Part of a circle's edge, for example where something a distance sensor measured could be |
 | `draw.marker(x, y, shape, size, color)` | A marker centered on `(x, y)`: `"circle"`, `"square"`, `"triangle"`, `"diamond"`, `"x"`, or `"plus"` |
 | `draw.markers(points, shape, size, color)` | The same marker at many points, sent as one shape (faster than many `marker()` calls) |
 | `draw.canvas(xmin, xmax, ymin, ymax, grid, background)` | Fixes the part shown, draws grid lines `grid` apart, and fills the picture with `background`. Without the edges (or with `draw.canvas()`), the view fits everything drawn. Each call sets all three again |
@@ -69,6 +71,17 @@ both ways, so a square looks square.
 | `draw.save_svg(path)` | Writes the drawing as an SVG file on the Pi and returns `path`, so `show(draw.save_svg("/tmp/map.svg"))` sends it to the laptop too |
 | `draw.save(path)` | Saves the drawing itself (the `canvas()` settings and every shape, with its name) so a later run can load it |
 | `draw.load(path)` | Replaces the drawing with one `save()` wrote, shows it, and returns the number of shapes, so the script can carry on drawing |
+
+`direction` counts in compass degrees by default (`angles="compass"`): 0 is up (+y) and angles grow clockwise, like
+the robot's heading. With `angles="math"`, 0 is to the right (+x) and angles grow counterclockwise, like
+`math.atan2()`. Each call says which it uses, so a script can see on the line itself how its angle counts. Getting it
+wrong does not look broken (the wedge points somewhere else), so when a wedge points the wrong way, check this first.
+
+```python
+draw.sector(x, y, distance, heading, 27, fill="lightskyblue")                   # the VL53L1X's cone, about 27 degrees
+draw.arc(x, y, distance, heading, 27, color="red")                                # the thing it measured is on this arc
+draw.sector(x, y, 0.5, math.degrees(math.atan2(dy, dx)), 27, angles="math")       # a direction from atan2
+```
 
 Every shape also takes `name`. A shape drawn with a name replaces the earlier shape with that name and is drawn on
 top, which moves something, such as the robot, without leaving copies behind.

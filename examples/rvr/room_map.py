@@ -7,7 +7,9 @@ sensor. It then drives to the next stop, if the way there is clear, and scans ag
 left off the map, so a large classroom is not mapped end to end.
 
 The app draws the map as the robot works (with runner_io's draw), beside the output:
-  light blue  each measurement while the robot scans: the sensor's line of sight, ending in a red dot where it hit
+  light blue  the sensor's cone while the robot scans, drawn out to the distance measured
+  red arcs    each distance measured: the sensor says how far the nearest thing in its cone is, not where in the
+              cone, so the thing is somewhere on the arc
   white       space the sensor saw through (free)
   black       where the sensor hit something (a wall, a chair leg, a box)
   gray        not seen
@@ -87,6 +89,7 @@ UNSEEN_COLOR = "lightgray"
 FREE_COLOR = "white"
 SOMETHING_COLOR = "black"
 BEAM_COLOR = "lightskyblue"
+BEAM_EDGE_COLOR = "steelblue"
 HIT_COLOR = "red"
 PATH_COLOR = "royalblue"
 ROBOT_COLOR = "darkorange"
@@ -478,20 +481,31 @@ def draw_grid(size):
 
 
 def draw_reading(reading, size):
-    """One measurement: the sensor's line of sight, and a dot where it hit something. Kept inside the square."""
+    """
+    One measurement as the sensor saw it: its cone (BEAM_DEGREES wide) out to the distance measured, and a red arc
+    at that distance, because the sensor says how far the nearest thing in the cone is, not where in the cone. The
+    cone is drawn with a name, so only the latest one shows; the arcs stay.
+    """
     x, y, heading, mm = reading
     reach = (mm if mm is not None else LONGEST_MM) / 1000
+    for side in (-BEAM_DEGREES / 2, 0, BEAM_DEGREES / 2):  # keep the cone's sides and middle inside the square
+        reach = min(reach, distance_to_edge(x, y, heading + side, size))
+    if 0 < reach:
+        draw.sector(x, y, reach, heading, BEAM_DEGREES, color=BEAM_EDGE_COLOR, fill=BEAM_COLOR, width=1, name="beam")
+    point = hit_point(reading)
+    if point is not None and inside(point, size):
+        draw.arc(x, y, mm / 1000, heading, BEAM_DEGREES, color=HIT_COLOR, width=2)
+
+
+def distance_to_edge(x, y, heading, size):
+    """How far from (x, y), inside the square, it is to the square's edge in a direction (compass degrees)."""
     dx, dy = math.sin(math.radians(heading)), math.cos(math.radians(heading))
     half = size / 2
-    limits = [reach]                                        # stop the line at the square's edge
+    limits = [float("inf")]
     for d, position in ((dx, x), (dy, y)):
         if 1e-9 < abs(d):
             limits.append(((half if 0 < d else -half) - position) / d)
-    length = max(0.0, min(limits))
-    draw.line(x, y, x + dx * length, y + dy * length, color=BEAM_COLOR, width=1)
-    point = hit_point(reading)
-    if point is not None and inside(point, size):
-        draw.marker(point[0], point[1], shape="circle", size=4, color=HIT_COLOR)
+    return max(0.0, min(limits))
 
 
 def draw_robot(robot):

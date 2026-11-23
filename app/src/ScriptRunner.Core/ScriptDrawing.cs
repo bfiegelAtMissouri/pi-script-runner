@@ -5,13 +5,23 @@ using System.Text.Json;
 namespace ScriptRunner.Core;
 
 /// <summary>A shape from runner_io's draw object, in the drawing's units (x to the right, y up).</summary>
-/// <param name="Op">line, polyline, polygon, rect, circle, text, or marker.</param>
+/// <param name="Op">line, polyline, polygon, rect, circle, text, marker, sector, or arc.</param>
 /// <param name="Points">The points of a line, polyline, polygon, or marker; empty for the others.</param>
 /// <param name="Width">Line width in pixels.</param>
 /// <param name="Size">Marker width or text size, in pixels.</param>
 public sealed record DrawShape(string Op, IReadOnlyList<(double X, double Y)> Points, double X, double Y, double W,
                                double H, double R, string Text, string Color, string Fill, double Width, double Size,
-                               string Marker, string? Name);
+                               string Marker, string? Name)
+{
+    /// <summary>A sector's or arc's middle direction, in compass degrees (0 up, clockwise).</summary>
+    public double Direction { get; init; }
+
+    /// <summary>A sector's or arc's width, in degrees (more than 0, less than 360).</summary>
+    public double Spread { get; init; }
+
+    /// <summary>A sector's inner radius (0 for a wedge from its point).</summary>
+    public double Inner { get; init; }
+}
 
 /// <summary>A runner_io draw message.</summary>
 public abstract record DrawCommand
@@ -95,7 +105,12 @@ public abstract record DrawCommand
         double Number(string name, double fallback) =>
             root.TryGetProperty(name, out JsonElement value) && JsonValueKind.Number == value.ValueKind ? value.GetDouble() : fallback;
         double x = Number("x", 0), y = Number("y", 0), w = Number("w", 0), h = Number("h", 0), r = Number("r", 0);
-        if (!new[] { x, y, w, h, r }.All(double.IsFinite) || w < 0 || h < 0 || r < 0)
+        double direction = Number("direction", 0), spread = Number("spread", 0), inner = Number("inner", 0);
+        if (!new[] { x, y, w, h, r, direction, spread, inner }.All(double.IsFinite) || w < 0 || h < 0 || r < 0)
+        {
+            return null;
+        }
+        if (op is "sector" or "arc" && (spread <= 0 || 360 <= spread || inner < 0 || (0 < inner && r <= inner)))
         {
             return null;
         }
@@ -112,7 +127,12 @@ public abstract record DrawCommand
         return new DrawShape(op, points, x, y, w, h, r, String(root, "text") ?? "",
                              ScriptDrawing.CheckColor(String(root, "color"), "black"), ScriptDrawing.CheckColor(String(root, "fill"), "none"),
                              Math.Clamp(width, 0.5, 50), "text" == op ? Math.Clamp(size, 4, 96) : Math.Clamp(size, 2, 200),
-                             marker, String(root, "name"));
+                             marker, String(root, "name"))
+        {
+            Direction = direction,
+            Spread = spread,
+            Inner = "sector" == op ? inner : 0,
+        };
     }
 
     private static string? String(JsonElement root, string name) =>
@@ -181,7 +201,7 @@ public sealed class ScriptDrawing
     private const int MostGridLines = 200;
 
     public static readonly IReadOnlySet<string> Ops =
-        new HashSet<string> { "line", "polyline", "polygon", "rect", "circle", "text", "marker" };
+        new HashSet<string> { "line", "polyline", "polygon", "rect", "circle", "text", "marker", "sector", "arc" };
 
     public static readonly IReadOnlySet<string> MarkerShapes =
         new HashSet<string> { "circle", "square", "triangle", "diamond", "x", "plus" };
@@ -268,6 +288,14 @@ public sealed class ScriptDrawing
             {
                 xs.AddRange(new[] { shape.X - shape.R, shape.X + shape.R });
                 ys.AddRange(new[] { shape.Y - shape.R, shape.Y + shape.R });
+            }
+            else if (shape.Op is "sector" or "arc")
+            {
+                foreach ((double px, double py) in WedgeExtent(shape))
+                {
+                    xs.Add(px);
+                    ys.Add(py);
+                }
             }
             else
             {
@@ -402,6 +430,10 @@ public sealed class ScriptDrawing
                 string fill = "polyline" == shape.Op ? "none" : shape.Fill;
                 line($"<{shape.Op} points=\"{points}\" fill=\"{fill}\" {stroke} stroke-linecap=\"round\" stroke-linejoin=\"round\"/>");
                 break;
+            case "sector":
+            case "arc":
+                line(WedgeSvg(shape, frame, stroke));
+                break;
             case "rect":
                 line($"<rect x=\"{F(frame.X(shape.X))}\" y=\"{F(frame.Y(shape.Y + shape.H))}\" width=\"{F(shape.W * frame.Scale)}\" height=\"{F(shape.H * frame.Scale)}\" fill=\"{shape.Fill}\" {stroke}/>");
                 break;
@@ -409,6 +441,77 @@ public sealed class ScriptDrawing
                 line($"<circle cx=\"{F(frame.X(shape.X))}\" cy=\"{F(frame.Y(shape.Y))}\" r=\"{F(shape.R * frame.Scale)}\" fill=\"{shape.Fill}\" {stroke}/>");
                 break;
         }
+    }
+
+    /// <summary>The point <paramref name="radius"/> away from (x, y) in a compass direction (0 up, clockwise).</summary>
+    public static (double X, double Y) Along(double x, double y, double radius, double compassDegrees)
+    {
+        double angle = compassDegrees * (Math.PI / 180);           // as Python's math.radians() computes it
+        return (x + radius * Math.Sin(angle), y + radius * Math.Cos(angle));
+    }
+
+    /// <summary>Points whose extent is the sector's or arc's: its ends, and where its edge is farthest each way.</summary>
+    private static List<(double X, double Y)> WedgeExtent(DrawShape shape)
+    {
+        double start = shape.Direction - shape.Spread / 2;
+        var points = new List<(double, double)>
+        {
+            Along(shape.X, shape.Y, shape.R, start), Along(shape.X, shape.Y, shape.R, start + shape.Spread),
+        };
+        foreach (double compass in new[] { 0.0, 90, 180, 270 })
+        {
+            if (Modulo(compass - start, 360) <= shape.Spread)
+            {
+                points.Add(Along(shape.X, shape.Y, shape.R, compass));
+            }
+        }
+        if ("sector" == shape.Op)
+        {
+            if (0 < shape.Inner)
+            {
+                points.Add(Along(shape.X, shape.Y, shape.Inner, start));
+                points.Add(Along(shape.X, shape.Y, shape.Inner, start + shape.Spread));
+            }
+            else
+            {
+                points.Add((shape.X, shape.Y));
+            }
+        }
+        return points;
+    }
+
+    /// <summary>Python's %: the result has the sign of the divisor.</summary>
+    private static double Modulo(double value, double divisor) => value - divisor * Math.Floor(value / divisor);
+
+    /// <summary>A sector or arc as an SVG path, as runner_io writes it.</summary>
+    private static string WedgeSvg(DrawShape shape, DrawingFrame frame, string stroke)
+    {
+        double start = shape.Direction - shape.Spread / 2;
+        int pieces = shape.Spread <= 180 ? 1 : 2;
+        string Point(double radius, double compass)
+        {
+            (double px, double py) = Along(shape.X, shape.Y, radius, compass);
+            return $"{F(frame.X(px))} {F(frame.Y(py))}";
+        }
+        string Sweep(double radius, bool clockwise)
+        {
+            string size = F(radius * frame.Scale);
+            var text = new StringBuilder();
+            IEnumerable<int> steps = clockwise ? Enumerable.Range(1, pieces) : Enumerable.Range(0, pieces).Reverse();
+            foreach (int k in steps)
+            {
+                text.Append($"A{size} {size} 0 0 {(clockwise ? 1 : 0)} {Point(radius, start + shape.Spread * k / pieces)}");
+            }
+            return text.ToString();
+        }
+        if ("arc" == shape.Op)
+        {
+            return $"<path d=\"M{Point(shape.R, start)}{Sweep(shape.R, true)}\" fill=\"none\" {stroke} stroke-linecap=\"round\"/>";
+        }
+        string d = 0 < shape.Inner
+            ? $"M{Point(shape.Inner, start)}L{Point(shape.R, start)}{Sweep(shape.R, true)}L{Point(shape.Inner, start + shape.Spread)}{Sweep(shape.Inner, false)}Z"
+            : $"M{F(frame.X(shape.X))} {F(frame.Y(shape.Y))}L{Point(shape.R, start)}{Sweep(shape.R, true)}Z";
+        return $"<path d=\"{d}\" fill=\"{shape.Fill}\" {stroke} stroke-linejoin=\"round\"/>";
     }
 
     private static string MarkerSvg(string marker, double x, double y, double size, string color)

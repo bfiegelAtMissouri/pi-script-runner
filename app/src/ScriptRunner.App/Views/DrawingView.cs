@@ -154,6 +154,10 @@ public sealed class DrawingView : Control
                 }
                 context.DrawGeometry("polygon" == shape.Op ? fill : null, pen, geometry);
                 break;
+            case "sector":
+            case "arc":
+                context.DrawGeometry("sector" == shape.Op ? fill : null, pen, WedgeGeometry(shape, frame));
+                break;
             case "rect":
                 context.DrawRectangle(fill, pen, new Rect(frame.X(shape.X), frame.Y(shape.Y + shape.H),
                                                           shape.W * frame.Scale, shape.H * frame.Scale));
@@ -163,6 +167,49 @@ public sealed class DrawingView : Control
                 context.DrawEllipse(fill, pen, new Point(frame.X(shape.X), frame.Y(shape.Y)), r, r);
                 break;
         }
+    }
+
+    /// <summary>A sector or arc, the same path as its SVG: arcs of up to 180 degrees each.</summary>
+    private static StreamGeometry WedgeGeometry(DrawShape shape, DrawingFrame frame)
+    {
+        double start = shape.Direction - shape.Spread / 2;
+        int pieces = shape.Spread <= 180 ? 1 : 2;
+        Point At(double radius, double compass)
+        {
+            (double x, double y) = ScriptDrawing.Along(shape.X, shape.Y, radius, compass);
+            return new Point(frame.X(x), frame.Y(y));
+        }
+        void Sweep(StreamGeometryContext g, double radius, bool clockwise)
+        {
+            var size = new Size(radius * frame.Scale, radius * frame.Scale);
+            for (int step = 1; step <= pieces; ++step)
+            {
+                int k = clockwise ? step : pieces - step;
+                g.ArcTo(At(radius, start + shape.Spread * k / pieces), size, 0, false,
+                        clockwise ? SweepDirection.Clockwise : SweepDirection.CounterClockwise);
+            }
+        }
+        var geometry = new StreamGeometry();
+        using StreamGeometryContext g = geometry.Open();
+        if ("arc" == shape.Op)
+        {
+            g.BeginFigure(At(shape.R, start), false);
+            Sweep(g, shape.R, true);
+            g.EndFigure(false);
+        }
+        else
+        {
+            g.BeginFigure(0 < shape.Inner ? At(shape.Inner, start) : new Point(frame.X(shape.X), frame.Y(shape.Y)), true);
+            g.LineTo(At(shape.R, start));
+            Sweep(g, shape.R, true);
+            if (0 < shape.Inner)
+            {
+                g.LineTo(At(shape.Inner, start + shape.Spread));
+                Sweep(g, shape.Inner, false);
+            }
+            g.EndFigure(true);
+        }
+        return geometry;
     }
 
     private static void DrawMarker(DrawingContext context, string marker, double x, double y, double size, IBrush? color)

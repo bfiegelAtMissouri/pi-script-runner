@@ -84,6 +84,25 @@ class DrawTests(unittest.TestCase):
         self.assertEqual(("400", "210", "95"), (circle.get("cx"), circle.get("cy"), circle.get("r")))  # y up
         self.assertEqual("A & <B>", root.findall(SVG + "text")[-1].text)
 
+    def test_sectors_and_arcs(self):
+        sent = messages(lambda: (self.draw.sector(0, 0, 1.5, 45, 27, fill="lightskyblue"),
+                                 self.draw.sector(0, 0, 1, 0, 30, inner=0.5, angles="math"),
+                                 self.draw.arc(1, 1, 0.5, -90, 90)))
+        self.assertEqual({"op": "sector", "x": 0.0, "y": 0.0, "r": 1.5, "inner": 0.0, "direction": 45.0,
+                          "spread": 27.0, "color": "black", "fill": "lightskyblue", "width": 2.0}, sent[0])
+        self.assertEqual(90.0, sent[1]["direction"], "math 0 (to the right) is compass 90")
+        self.assertEqual(270.0, sent[2]["direction"], "directions are sent from 0 to 360")
+        # The view fits the sector's edge, not just its point: a wedge pointing right from (0, 0) reaches x = 1.5.
+        only = runner_io.Drawing()
+        messages(lambda: only.sector(0, 0, 1.5, 90, 20))
+        self.assertAlmostEqual(1.5 + 0.075, only._view()[1])
+        for action, words in [(lambda: self.draw.sector(0, 0, 1, 0, 360), "less than 360"),
+                              (lambda: self.draw.sector(0, 0, 1, 0, 27, inner=1), "inner < r"),
+                              (lambda: self.draw.arc(0, 0, 1, 0, 27, angles="radians"), 'angles must be "compass" or "math"')]:
+            with self.assertRaises(ValueError) as caught:
+                messages(action)
+            self.assertIn(words, str(caught.exception))
+
     def test_background(self):
         messages(lambda: self.draw.marker(0, 0))
         self.assertNotIn("<rect", self.draw.svg(), "transparent unless a background is set")
@@ -100,6 +119,7 @@ class DrawTests(unittest.TestCase):
             self.draw.polyline([(0, 0), (1, 0.5), (2, 0)], color="royalblue", name="path")
             self.draw.text(0.1, 0.9, "kitchen & hall")
             self.draw.markers([(0.5, 0.5), (1.5, 0.5)], shape="x", color="red")
+            self.draw.sector(1, 0.5, 0.8, 300, 27, fill="lightskyblue", inner=0.1, angles="math", name="cone")
             self.draw.marker(1, 0.5, shape="triangle", name="robot")
         messages(make)
         with tempfile.TemporaryDirectory() as folder:
@@ -108,9 +128,10 @@ class DrawTests(unittest.TestCase):
             later = runner_io.Drawing()
             counts = []
             sent = messages(lambda: counts.append(later.load(path)))
-        self.assertEqual([5], counts)
+        self.assertEqual([6], counts)
         self.assertEqual(self.draw.svg(), later.svg(), "the same drawing, settings and all")
-        self.assertEqual(["clear", "canvas", "rect", "polyline", "text", "marker", "marker"], [m["op"] for m in sent])
+        self.assertEqual(["clear", "canvas", "rect", "polyline", "text", "marker", "sector", "marker"],
+                         [m["op"] for m in sent])
         messages(lambda: later.marker(2, 1, shape="triangle", name="robot"))      # names still replace
         self.assertEqual(1, later.svg().count("<polygon"))
 

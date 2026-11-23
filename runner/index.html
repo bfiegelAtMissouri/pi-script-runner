@@ -494,7 +494,7 @@
 
   // ---------- draw: the same picture as runner_io's save_svg() and the app ----------
   var MOST_SHAPES = 20000, MOST_POINTS = 5000, SVG_BOX = 760, MARGIN = 20, MOST_GRID_LINES = 200;
-  var SHAPE_OPS = ["line", "polyline", "polygon", "rect", "circle", "text", "marker"];
+  var SHAPE_OPS = ["line", "polyline", "polygon", "rect", "circle", "text", "marker", "sector", "arc"];
   var MARKER_SHAPES = ["circle", "square", "triangle", "diamond", "x", "plus"];
   var drawing = { shapes: [], bounds: null, grid: null, background: "none" }, drawingFig = null, drawingQueued = false;
 
@@ -549,10 +549,14 @@
         !points.every(function (p) { return Array.isArray(p) && 2 === p.length && finite(p[0]) && finite(p[1]); })) { return null; }
     function num(name, fallback) { return undefined === c[name] ? fallback : c[name]; }
     var s = { op: c.op, points: points, x: num("x", 0), y: num("y", 0), w: num("w", 0), h: num("h", 0), r: num("r", 0),
+              direction: num("direction", 0), spread: num("spread", 0), inner: "sector" === c.op ? num("inner", 0) : 0,
               text: String(num("text", "")), color: checkColor(c.color, "black"), fill: checkColor(c.fill, "none"),
               width: num("width", 2), size: num("size", "text" === c.op ? 14 : 10), shape: String(num("shape", "circle")),
               name: null == c.name ? null : String(c.name) };
-    if (![s.x, s.y, s.w, s.h, s.r, s.width, s.size].every(finite) || s.w < 0 || s.h < 0 || s.r < 0) { return null; }
+    if (![s.x, s.y, s.w, s.h, s.r, s.width, s.size, s.direction, s.spread, s.inner].every(finite) ||
+        s.w < 0 || s.h < 0 || s.r < 0) { return null; }
+    if (("sector" === c.op || "arc" === c.op) &&
+        (s.spread <= 0 || 360 <= s.spread || s.inner < 0 || (0 < s.inner && s.r <= s.inner))) { return null; }
     if ("marker" === c.op && -1 === MARKER_SHAPES.indexOf(s.shape)) { return null; }
     s.width = clamp(s.width, 0.5, 50);
     s.size = "text" === c.op ? clamp(s.size, 4, 96) : clamp(s.size, 2, 200);
@@ -566,6 +570,7 @@
       if (s.points.length) { s.points.forEach(function (p) { xs.push(p[0]); ys.push(p[1]); }); }
       else if ("rect" === s.op) { xs.push(s.x, s.x + s.w); ys.push(s.y, s.y + s.h); }
       else if ("circle" === s.op) { xs.push(s.x - s.r, s.x + s.r); ys.push(s.y - s.r, s.y + s.r); }
+      else if ("sector" === s.op || "arc" === s.op) { wedgeExtent(s).forEach(function (p) { xs.push(p[0]); ys.push(p[1]); }); }
       else { xs.push(s.x); ys.push(s.y); }
     });
     if (!xs.length) { xs = [0, 1]; ys = [0, 1]; }
@@ -626,6 +631,8 @@
         var pts = s.points.map(function (p) { return fmt(X(p[0])) + "," + fmt(Y(p[1])); }).join(" ");
         out.push("<" + s.op + ' points="' + pts + '" fill="' + ("polyline" === s.op ? "none" : s.fill) + '" ' + stroke +
                  ' stroke-linecap="round" stroke-linejoin="round"/>');
+      } else if ("sector" === s.op || "arc" === s.op) {
+        out.push(wedgeSvg(s, X, Y, k, stroke));
       } else if ("rect" === s.op) {
         out.push('<rect x="' + fmt(X(s.x)) + '" y="' + fmt(Y(s.y + s.h)) + '" width="' + fmt(s.w * k) + '" height="' + fmt(s.h * k) +
                  '" fill="' + s.fill + '" ' + stroke + "/>");
@@ -635,6 +642,42 @@
     });
     out.push("</svg>");
     return out.join("\n") + "\n";
+  }
+
+  // Sectors and arcs: directions in compass degrees (0 up, clockwise), as runner_io sends them.
+  function along(x, y, radius, compass) {
+    var angle = compass * (Math.PI / 180);
+    return [x + radius * Math.sin(angle), y + radius * Math.cos(angle)];
+  }
+  function modulo(value, divisor) { return value - divisor * Math.floor(value / divisor); }
+  function wedgeExtent(s) {
+    var start = s.direction - s.spread / 2;
+    var points = [along(s.x, s.y, s.r, start), along(s.x, s.y, s.r, start + s.spread)];
+    [0, 90, 180, 270].forEach(function (c) { if (modulo(c - start, 360) <= s.spread) { points.push(along(s.x, s.y, s.r, c)); } });
+    if ("sector" === s.op) {
+      if (0 < s.inner) { points.push(along(s.x, s.y, s.inner, start), along(s.x, s.y, s.inner, start + s.spread)); }
+      else { points.push([s.x, s.y]); }
+    }
+    return points;
+  }
+  function wedgeSvg(s, X, Y, k, stroke) {
+    var start = s.direction - s.spread / 2, pieces = s.spread <= 180 ? 1 : 2;
+    function point(radius, compass) { var p = along(s.x, s.y, radius, compass); return fmt(X(p[0])) + " " + fmt(Y(p[1])); }
+    function sweep(radius, clockwise) {
+      var size = fmt(radius * k), text = "", i, step;
+      for (i = 1; i <= pieces; ++i) {
+        step = clockwise ? i : pieces - i;
+        text += "A" + size + " " + size + " 0 0 " + (clockwise ? 1 : 0) + " " + point(radius, start + s.spread * step / pieces);
+      }
+      return text;
+    }
+    if ("arc" === s.op) {
+      return '<path d="M' + point(s.r, start) + sweep(s.r, true) + '" fill="none" ' + stroke + ' stroke-linecap="round"/>';
+    }
+    var d = 0 < s.inner
+      ? "M" + point(s.inner, start) + "L" + point(s.r, start) + sweep(s.r, true) + "L" + point(s.inner, start + s.spread) + sweep(s.inner, false) + "Z"
+      : "M" + fmt(X(s.x)) + " " + fmt(Y(s.y)) + "L" + point(s.r, start) + sweep(s.r, true) + "Z";
+    return '<path d="' + d + '" fill="' + s.fill + '" ' + stroke + ' stroke-linejoin="round"/>';
   }
 
   function markerSvg(shape, x, y, size, c) {

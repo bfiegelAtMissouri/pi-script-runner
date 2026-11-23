@@ -29,6 +29,9 @@ public sealed class DrawingTests
         for i, shape in enumerate(["circle", "square", "triangle", "diamond", "x", "plus"]):
             draw.marker(0.2 + 0.3 * i, 0.9, shape=shape, color="red", size=7 + i)
         draw.markers([(1.0, 0.3), (1.1, 0.35), (1.2, 0.4)], shape="square", size=4, color="purple")
+        draw.sector(0.3, 0.3, 1.1, 37.5, 27, color="steelblue", fill="lightskyblue", width=1)
+        draw.sector(1.6, 0.4, 0.5, 200, 250, fill="bisque", inner=0.2, angles="math")
+        draw.arc(0.3, 0.3, 0.8, 37.5, 200, color="red", width=3)
         draw.marker(1, 1, shape="triangle", color="blue", name="robot")
         draw.text(1, 1.1, "gone", name="label")
         draw.marker(1.25, 1.05, shape="triangle", color="blue", name="robot")
@@ -77,7 +80,7 @@ public sealed class DrawingTests
             drawing.Apply(item.Command);
         }
         Assert.Equal(File.ReadAllText(svg), drawing.ToSvg());
-        Assert.Equal("clear" == mode ? 1 : 15, drawing.Shapes.Count);
+        Assert.Equal("clear" == mode ? 1 : 18, drawing.Shapes.Count);
         Directory.Delete(work, true);
     }
 
@@ -88,6 +91,8 @@ public sealed class DrawingTests
     [InlineData("{\"op\": \"circle\", \"x\": 0, \"y\": 0, \"r\": -1}")]
     [InlineData("{\"op\": \"canvas\", \"bounds\": [1, 0, 0, 1]}")]                                  // xmin > xmax
     [InlineData("{\"op\": \"canvas\", \"grid\": 0}")]
+    [InlineData("{\"op\": \"sector\", \"x\": 0, \"y\": 0, \"r\": 1, \"direction\": 0, \"spread\": 360}")]   // circle() is for that
+    [InlineData("{\"op\": \"sector\", \"x\": 0, \"y\": 0, \"r\": 1, \"direction\": 0, \"spread\": 27, \"inner\": 1}")]
     [InlineData("{\"op\": \"spiral\"}")]
     [InlineData("[1, 2]")]
     [InlineData("not json")]

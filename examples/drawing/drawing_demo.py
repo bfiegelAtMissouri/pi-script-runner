@@ -10,6 +10,8 @@ Things to notice:
   - canvas() fixes the part shown, so the view does not jump as the robot moves.
   - Sizes of rectangles and circles are in meters; marker sizes, line widths, and text sizes are in pixels.
   - Drawing with name="robot" replaces the earlier robot marker instead of adding another one.
+  - draw.sector() draws the pretend distance sensor's cone. Its direction here comes from math.atan2(), which counts
+    in math angles (0 to the right, counterclockwise), so the call says angles="math".
 """
 import math
 import time
@@ -21,6 +23,8 @@ ROOM_DEPTH = 2.0
 STEP = 0.05                     # meters the robot moves each step
 PAUSE = 0.05                    # seconds between steps
 SVG_FILE = "/tmp/drawing_demo.svg"
+SENSOR_DEGREES = 27              # how wide the pretend distance sensor's cone is (as the VL53L1X's)
+SENSOR_REACH = 0.6               # meters the cone is drawn out to
 
 # The corners the pretend robot drives to, in order.
 WAYPOINTS = [(0.3, 0.3), (2.6, 0.3), (2.6, 1.0), (1.4, 1.0), (1.4, 1.7), (0.3, 1.7), (0.3, 0.3)]
@@ -67,6 +71,9 @@ def drive():
             path.append((x, y))
 
             draw.polyline(path, color="royalblue", width=2, name="path")                # the path so far
+            facing = math.degrees(math.atan2(dy, dx))                                   # math angle of travel
+            draw.sector(x, y, SENSOR_REACH, facing, SENSOR_DEGREES, color="goldenrod", fill="lightyellow",
+                        width=1, name="sensor", angles="math")                          # what the sensor sees
             draw.marker(x, y, shape="triangle", size=16, color="red", name="robot")      # where it is now
             plot(traveled_m=round(traveled, 2))
 
@@ -83,6 +90,7 @@ def main():
     draw_room()
     print("Driving the pretend robot")
     traveled = drive()
+    draw.remove("sensor")
     draw.marker(*WAYPOINTS[0], shape="diamond", size=14, color="darkorange", name="robot")
     draw.text(0.4, 0.15, "home", size=12, color="darkorange")
     print("Traveled %.2f m" % traveled)

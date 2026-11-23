@@ -195,6 +195,46 @@ def _escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
+def _compass(direction: object, angles: str) -> float:
+    """A direction in compass degrees (0 up, clockwise), from compass or math degrees (0 right, counterclockwise)."""
+    value = _number(direction, "direction")
+    if "math" == angles:
+        value = 90 - value
+    elif "compass" != angles:
+        raise ValueError('angles must be "compass" or "math", not %r' % (angles,))
+    return value % 360
+
+
+def _spread(spread: object) -> float:
+    value = _number(spread, "spread")
+    if not 0 < value < 360:
+        raise ValueError("spread must be more than 0 and less than 360 degrees (for a whole circle, use circle())")
+    return value
+
+
+def _along(x: float, y: float, radius: float, compass_degrees: float) -> Tuple[float, float]:
+    """The point radius away from (x, y) in a compass direction."""
+    angle = math.radians(compass_degrees)
+    return x + radius * math.sin(angle), y + radius * math.cos(angle)
+
+
+def _wedge_extent(shape: Dict[str, Any]) -> List[Tuple[float, float]]:
+    """Points whose extent is the sector's or arc's: its ends, and where its edge is farthest up, right, down, left."""
+    x, y, r = shape["x"], shape["y"], shape["r"]
+    start = shape["direction"] - shape["spread"] / 2
+    points = [_along(x, y, r, start), _along(x, y, r, start + shape["spread"])]
+    for compass_degrees in (0, 90, 180, 270):
+        if (compass_degrees - start) % 360 <= shape["spread"]:
+            points.append(_along(x, y, r, compass_degrees))
+    inner = shape.get("inner", 0)
+    if "sector" == shape["op"]:
+        if 0 < inner:
+            points += [_along(x, y, inner, start), _along(x, y, inner, start + shape["spread"])]
+        else:
+            points.append((x, y))
+    return points
+
+
 class _Frame:
     """Where the drawing's units land in pixels: x to the right, y up, the same scale both ways."""
 
@@ -346,6 +386,43 @@ class Drawing:
         self._add({"op": "marker", "points": _points(points, 1, "markers"), "shape": shape,
                    "size": _clamp(_number(size, "size"), 2, 200), "color": _color(color, "color")}, name)
 
+    def sector(self, x: float, y: float, r: float, direction: float, spread: float, color: str = "black",
+               fill: str = "none", width: float = 2, name: Optional[str] = None, inner: float = 0,
+               angles: str = "compass") -> None:
+        """
+        Purpose: a wedge (a slice of a circle), for example what a distance sensor sees: its cone, seen from above
+        Inputs:  x, y - the point of the wedge (where the sensor is)
+                 r - how far the wedge reaches, in the drawing's units (for example the distance measured)
+                 direction - the direction of the wedge's middle, in degrees (see angles)
+                 spread - how wide the wedge is, in degrees: more than 0 and less than 360 (the VL53L1X: about 27)
+                 inner - with more than 0, the wedge starts this far out instead (a band, for example the range of
+                 distances a reading could mean)
+                 angles - "compass" (the default): 0 is up (+y) and angles grow clockwise, like the robot's
+                 heading; "math": 0 is to the right (+x) and angles grow counterclockwise, like math.atan2()
+        Returns: nothing
+        """
+        x, y, r, inner = _number(x, "x"), _number(y, "y"), _number(r, "r"), _number(inner, "inner")
+        if r < 0 or inner < 0 or (0 < inner and r <= inner):
+            raise ValueError("sector needs r >= 0 and, with inner, 0 <= inner < r")
+        self._add({"op": "sector", "x": x, "y": y, "r": r, "inner": inner,
+                   "direction": _compass(direction, angles), "spread": _spread(spread),
+                   "color": _color(color, "color"), "fill": _color(fill, "fill"), "width": self._width(width)}, name)
+
+    def arc(self, x: float, y: float, r: float, direction: float, spread: float, color: str = "black",
+            width: float = 2, name: Optional[str] = None, angles: str = "compass") -> None:
+        """
+        Purpose: part of a circle's edge, for example where something a distance sensor measured could be
+        Inputs:  x, y - the circle's center; r - its radius, in the drawing's units
+                 direction, spread, angles - which part of the edge, as for sector()
+        Returns: nothing
+        """
+        r = _number(r, "r")
+        if r < 0:
+            raise ValueError("r must not be negative")
+        self._add({"op": "arc", "x": _number(x, "x"), "y": _number(y, "y"), "r": r,
+                   "direction": _compass(direction, angles), "spread": _spread(spread),
+                   "color": _color(color, "color"), "width": self._width(width)}, name)
+
     # ---- Files ----
 
     def save_svg(self, path: str) -> str:
@@ -434,6 +511,11 @@ class Drawing:
             self.text(shape["x"], shape["y"], shape["text"], color, shape.get("size", 14), name)
         elif "marker" == op:
             self.markers(shape["points"], shape.get("shape", "circle"), shape.get("size", 10), color, name)
+        elif "sector" == op:
+            self.sector(shape["x"], shape["y"], shape["r"], shape["direction"], shape["spread"], color,
+                        shape.get("fill", "none"), width, name, shape.get("inner", 0))
+        elif "arc" == op:
+            self.arc(shape["x"], shape["y"], shape["r"], shape["direction"], shape["spread"], color, width, name)
         else:
             raise ValueError("unknown shape %r" % op)
 
@@ -490,6 +572,10 @@ class Drawing:
             elif "circle" == shape["op"]:
                 xs.extend((shape["x"] - shape["r"], shape["x"] + shape["r"]))
                 ys.extend((shape["y"] - shape["r"], shape["y"] + shape["r"]))
+            elif shape["op"] in ("sector", "arc"):
+                for px, py in _wedge_extent(shape):
+                    xs.append(px)
+                    ys.append(py)
             else:
                 xs.append(shape["x"])
                 ys.append(shape["y"])
@@ -553,12 +639,43 @@ def _shape_svg(shape: Dict[str, Any], frame: _Frame) -> List[str]:
         fill = "none" if "polyline" == op else shape["fill"]
         return ['<%s points="%s" fill="%s" %s stroke-linecap="round" stroke-linejoin="round"/>'
                 % (op, points, fill, stroke)]
+    if op in ("sector", "arc"):
+        return [_wedge_svg(shape, frame, stroke)]
     if "rect" == op:
         return ['<rect x="%s" y="%s" width="%s" height="%s" fill="%s" %s/>'
                 % (f(frame.x(shape["x"])), f(frame.y(shape["y"] + shape["h"])), f(shape["w"] * frame.scale),
                    f(shape["h"] * frame.scale), shape["fill"], stroke)]
     return ['<circle cx="%s" cy="%s" r="%s" fill="%s" %s/>'
             % (f(frame.x(shape["x"])), f(frame.y(shape["y"])), f(shape["r"] * frame.scale), shape["fill"], stroke)]
+
+
+def _wedge_svg(shape: Dict[str, Any], frame: _Frame, stroke: str) -> str:
+    """A sector or arc as an SVG path: its curved edges are SVG arcs, in one piece up to 180 degrees, else two."""
+    f = _format
+    x, y, r, spread = shape["x"], shape["y"], shape["r"], shape["spread"]
+    start = shape["direction"] - spread / 2
+    pieces = 1 if spread <= 180 else 2
+
+    def point(radius: float, compass_degrees: float) -> str:
+        px, py = _along(x, y, radius, compass_degrees)
+        return "%s %s" % (f(frame.x(px)), f(frame.y(py)))
+
+    def sweep(radius: float, clockwise: bool) -> str:
+        size = f(radius * frame.scale)
+        steps = range(1, pieces + 1) if clockwise else range(pieces - 1, -1, -1)
+        return "".join("A%s %s 0 0 %d %s" % (size, size, 1 if clockwise else 0,
+                                              point(radius, start + spread * k / pieces)) for k in steps)
+
+    if "arc" == shape["op"]:
+        d = "M%s%s" % (point(r, start), sweep(r, True))
+        return '<path d="%s" fill="none" %s stroke-linecap="round"/>' % (d, stroke)
+    inner = shape["inner"]
+    if 0 < inner:
+        d = "M%sL%s%sL%s%sZ" % (point(inner, start), point(r, start), sweep(r, True), point(inner, start + spread),
+                               sweep(inner, False))
+    else:
+        d = "M%s %sL%s%sZ" % (f(frame.x(x)), f(frame.y(y)), point(r, start), sweep(r, True))
+    return '<path d="%s" fill="%s" %s stroke-linejoin="round"/>' % (d, shape["fill"], stroke)
 
 
 def _marker_svg(shape: str, x: float, y: float, size: float, color: str) -> str:
