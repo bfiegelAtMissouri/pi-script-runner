@@ -93,6 +93,43 @@ class DrawTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             messages(lambda: self.draw.canvas(background="transparent-ish"))
 
+    def test_save_and_load_carry_on(self):
+        def make():
+            self.draw.canvas(-1, 3, -1, 2, grid=0.5, background="ivory")
+            self.draw.rect(0, 0, 2, 1, color="gray", fill="whitesmoke")
+            self.draw.polyline([(0, 0), (1, 0.5), (2, 0)], color="royalblue", name="path")
+            self.draw.text(0.1, 0.9, "kitchen & hall")
+            self.draw.markers([(0.5, 0.5), (1.5, 0.5)], shape="x", color="red")
+            self.draw.marker(1, 0.5, shape="triangle", name="robot")
+        messages(make)
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "maps", "room.json")         # the folder is made when needed
+            self.assertEqual(path, self.draw.save(path))
+            later = runner_io.Drawing()
+            counts = []
+            sent = messages(lambda: counts.append(later.load(path)))
+        self.assertEqual([5], counts)
+        self.assertEqual(self.draw.svg(), later.svg(), "the same drawing, settings and all")
+        self.assertEqual(["clear", "canvas", "rect", "polyline", "text", "marker", "marker"], [m["op"] for m in sent])
+        messages(lambda: later.marker(2, 1, shape="triangle", name="robot"))      # names still replace
+        self.assertEqual(1, later.svg().count("<polygon"))
+
+    def test_load_explains_a_wrong_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            cases = [("notes.txt", "hello", "not JSON"),
+                     ("other.json", '{"shapes": []}', "not a drawing saved by draw.save()"),
+                     ("bad.json", '{"format": "runner_io drawing", "version": 1, "shapes": [{"op": "circle", "x": 0}]}',
+                      "shape 1 could not be loaded")]
+            for name, text, words in cases:
+                path = os.path.join(folder, name)
+                with open(path, "w") as file:
+                    file.write(text)
+                with self.assertRaises(ValueError) as caught:
+                    messages(lambda: self.draw.load(path))
+                self.assertIn(words, str(caught.exception))
+            with self.assertRaises(OSError):
+                self.draw.load(os.path.join(folder, "missing.json"))
+
     def test_fits_everything_drawn_without_canvas(self):
         messages(lambda: (self.draw.line(0, 0, 10, 0), self.draw.marker(5, 5)))
         root = ElementTree.fromstring(self.draw.svg())

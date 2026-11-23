@@ -67,6 +67,8 @@ both ways, so a square looks square.
 | `draw.clear()` | Erases everything drawn (the `canvas()` settings stay) |
 | `draw.remove(name)` | Erases the shape drawn with that name |
 | `draw.save_svg(path)` | Writes the drawing as an SVG file on the Pi and returns `path`, so `show(draw.save_svg("/tmp/map.svg"))` sends it to the laptop too |
+| `draw.save(path)` | Saves the drawing itself (the `canvas()` settings and every shape, with its name) so a later run can load it |
+| `draw.load(path)` | Replaces the drawing with one `save()` wrote, shows it, and returns the number of shapes, so the script can carry on drawing |
 
 Every shape also takes `name`. A shape drawn with a name replaces the earlier shape with that name and is drawn on
 top, which moves something, such as the robot, without leaving copies behind.
@@ -88,6 +90,33 @@ edge; the view does not grow to show shapes outside them. A run keeps up to 2000
 shape can have up to 5000 points. A shape drawn again with the same `name` does not add to the count.
 
 The app clears the drawing at the start of each run. **Save run…** includes it as `drawing.svg`.
+
+### Carrying on in a later run
+
+`save()` and `load()` let one run continue another's drawing, for example a second mapping run that adds to the
+first:
+
+```python
+import os
+from runner_io import draw
+
+MAP = "~/maps/room.json"                     # ~ is the home folder on the Pi
+if os.path.exists(os.path.expanduser(MAP)):
+    draw.load(MAP)                           # the earlier map, with its canvas settings and names
+else:
+    draw.canvas(-1, 1, -1, 1, grid=0.5)
+...
+draw.marker(x, y, shape="triangle", name="robot")   # replaces the loaded robot
+draw.save(MAP)
+```
+
+They also work within one run: `draw.save("/tmp/before.json")`, then `draw.clear()` for a blank canvas (add
+`draw.canvas()` to reset its settings too), then later `draw.load("/tmp/before.json")` to bring the saved drawing back.
+
+For a later run, save somewhere that lasts: the script's own folder is emptied at the start of each run, and `/tmp` when the Pi
+restarts. `save()` makes the folder if it is missing. The file is JSON, so a script can also read it. `load()` checks
+every shape as it was checked when first drawn, and raises `ValueError` (naming the shape) for a file that is not a
+saved drawing.
 
 `filename` is either relative to the script's folder on the Pi (for example
 `photo.jpg`) or an absolute path in `/tmp` (for example `/tmp/photo.jpg`).

@@ -18,6 +18,7 @@ A script can also draw a picture, such as a map, that the app shows as it is dra
     draw.marker(0.4, 1.2, shape="x", color="red")
     draw.marker(x, y, shape="triangle", color="blue", name="robot")   # a name replaces what was drawn before
     draw.save_svg("/tmp/map.svg")              # the same picture as a file on the Pi
+    draw.save("~/maps/room.json")              # a later run can draw.load() it and carry on
 
 Files for play() and show() must be in the same folder as the script (drop them onto
 the page along with the .py file, or have the script create them) or in /tmp
@@ -136,6 +137,7 @@ _MOST_POINTS = 5000             # points in one line, polygon, or markers() call
 _SVG_BOX = 760.0                # the saved picture fits in this many pixels each way, inside a 20-pixel margin
 _MARGIN = 20.0
 _MOST_GRID_LINES = 200          # each way; with more, the grid is left out
+_FILE_FORMAT = "runner_io drawing"
 
 
 def _number(value: object, what: str) -> float:
@@ -222,6 +224,8 @@ class Drawing:
     something, such as the robot's marker, without leaving copies behind.
 
     Colors are names such as "red", "gray", or "steelblue" (the web's color names), "#RRGGBB", or "none".
+
+    save_svg() saves the picture; save() saves the drawing itself, which a later run can load() and carry on.
     """
 
     def __init__(self) -> None:
@@ -342,7 +346,7 @@ class Drawing:
         self._add({"op": "marker", "points": _points(points, 1, "markers"), "shape": shape,
                    "size": _clamp(_number(size, "size"), 2, 200), "color": _color(color, "color")}, name)
 
-    # ---- The picture as a file ----
+    # ---- Files ----
 
     def save_svg(self, path: str) -> str:
         """
@@ -350,9 +354,88 @@ class Drawing:
         Inputs:  path - the file, for example "/tmp/map.svg"; a name without a folder is saved next to the script
         Returns: the path, so show(draw.save_svg("/tmp/map.svg")) sends it to the laptop too
         """
+        path = os.path.expanduser(path)
         with open(path, "w", encoding="utf-8", newline="\n") as file:
             file.write(self.svg())
         return path
+
+    def save(self, path: str) -> str:
+        """
+        Purpose: save the drawing so a later run can load() it and carry on: the canvas() settings and every shape,
+                 with its name
+        Inputs:  path - the file, for example "~/maps/room.json" (~ is the home folder). Do not save next to the
+                 script for a later run: the script's folder is emptied at the start of each run. /tmp is emptied
+                 when the Pi restarts.
+        Returns: the path
+        """
+        path = os.path.expanduser(path)
+        folder = os.path.dirname(path)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
+        contents = {"format": _FILE_FORMAT, "version": 1,
+                    "canvas": {"bounds": None if self._bounds is None else list(self._bounds), "grid": self._grid,
+                               "background": self._background},
+                    "shapes": self._shapes}
+        with open(path, "w", encoding="utf-8", newline="\n") as file:
+            json.dump(contents, file, indent=1)
+            file.write("\n")
+        return path
+
+    def load(self, path: str) -> int:
+        """
+        Purpose: replace the drawing with one saved by save(), and show it, so the script can carry on drawing
+        Inputs:  path - the file save() wrote
+        Returns: the number of shapes loaded
+        Raises:  OSError if the file cannot be read; ValueError if it is not a drawing saved by save()
+
+        The canvas() settings come back too, and named shapes keep their names, so drawing "robot" again replaces
+        the loaded robot.
+        """
+        path = os.path.expanduser(path)
+        with open(path, encoding="utf-8") as file:
+            try:
+                contents = json.load(file)
+            except ValueError:
+                raise ValueError("%s is not a drawing saved by draw.save() (it is not JSON)" % path)
+        if not isinstance(contents, dict) or _FILE_FORMAT != contents.get("format"):
+            raise ValueError("%s is not a drawing saved by draw.save()" % path)
+        canvas = contents.get("canvas") or {}
+        shapes = contents.get("shapes") or []
+        bounds = canvas.get("bounds") or [None] * 4
+        if not isinstance(shapes, list) or not isinstance(bounds, list) or 4 != len(bounds):
+            raise ValueError("%s is not a drawing saved by draw.save()" % path)
+        self.clear()
+        self.canvas(*bounds, grid=canvas.get("grid"), background=canvas.get("background", "none"))
+        for number, shape in enumerate(shapes, 1):
+            try:
+                self._redraw(shape)
+            except (ValueError, TypeError, KeyError, AttributeError) as error:
+                raise ValueError("%s: shape %d could not be loaded: %s" % (path, number, error))
+        return len(shapes)
+
+    def _redraw(self, shape: Dict[str, Any]) -> None:
+        """Draws a saved shape again, through the same checks as when it was first drawn."""
+        op = shape["op"]
+        name = shape.get("name")
+        color = shape.get("color", "black")
+        width = shape.get("width", 2)
+        if "line" == op:
+            (x1, y1), (x2, y2) = shape["points"]
+            self.line(x1, y1, x2, y2, color, width, name)
+        elif "polyline" == op:
+            self.polyline(shape["points"], color, width, name)
+        elif "polygon" == op:
+            self.polygon(shape["points"], color, shape.get("fill", "none"), width, name)
+        elif "rect" == op:
+            self.rect(shape["x"], shape["y"], shape["w"], shape["h"], color, shape.get("fill", "none"), width, name)
+        elif "circle" == op:
+            self.circle(shape["x"], shape["y"], shape["r"], color, shape.get("fill", "none"), width, name)
+        elif "text" == op:
+            self.text(shape["x"], shape["y"], shape["text"], color, shape.get("size", 14), name)
+        elif "marker" == op:
+            self.markers(shape["points"], shape.get("shape", "circle"), shape.get("size", 10), color, name)
+        else:
+            raise ValueError("unknown shape %r" % op)
 
     def svg(self) -> str:
         """The drawing as SVG text."""

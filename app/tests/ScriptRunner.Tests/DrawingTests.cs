@@ -36,6 +36,12 @@ public sealed class DrawingTests
         if "clear" == mode:
             draw.clear()
             draw.marker(0.123456, -7.891011, shape="plus")
+        if "load" == mode:                      # a later run: start over, load, and carry on
+            draw.save(sys.argv[1] + ".json")
+            draw.clear()
+            draw.canvas()
+            draw.load(sys.argv[1] + ".json")
+            draw.marker(1.5, 0.5, shape="triangle", color="blue", name="robot")
         draw.save_svg(sys.argv[1])
         """;
 
@@ -43,6 +49,7 @@ public sealed class DrawingTests
     [InlineData("auto")]
     [InlineData("fixed")]
     [InlineData("clear")]
+    [InlineData("load")]
     public void TheAppSavesTheSameSvgAsThePi(string mode)
     {
         string? python = ConnectionTests.FindPython();
