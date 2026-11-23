@@ -101,7 +101,7 @@ internal sealed class WindowsAudio : IAudioService
     private static extern bool mciGetErrorStringW(int error, StringBuilder text, int length);
 }
 
-/// <summary>PINs and passwords in Windows Credential Manager (generic credentials, this user only).</summary>
+/// <summary>Passwords in Windows Credential Manager (generic credentials, this user only).</summary>
 [SupportedOSPlatform("windows")]
 internal sealed class WindowsCredentialStore : ISecretStore
 {

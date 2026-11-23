@@ -8,7 +8,7 @@ namespace ScriptRunner.App.Services;
 /// <summary>
 /// A record of what the app did, kept so a crash can be explained afterward. Each day's activity goes to
 /// logs/app-YYYYMMDD.log in the settings folder, and every unexpected error writes logs/crash-YYYYMMDD-HHMMSS.txt with
-/// the error's full details and the most recent activity. Passwords, PINs, and script output are never written.
+/// the error's full details and the most recent activity. Passwords and script output are never written.
 /// Thread-safe; logging never throws.
 /// </summary>
 public static class DiagnosticLog

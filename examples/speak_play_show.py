@@ -1,7 +1,7 @@
 """
 Speech, sound, and images on the laptop.
 
-Drop this file AND beep.wav onto the page (or the app), then press Run.
+Add this file AND beep.wav in the app, then press Run.
 The script draws its own image (a PNG file), so no image file is needed.
 """
 import struct

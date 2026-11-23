@@ -46,9 +46,6 @@ public sealed partial class FileEntry : ObservableObject
 /// <summary>The app's only screen: connection, files, Run and Stop, output, input, and images.</summary>
 public sealed partial class MainViewModel : ViewModelBase
 {
-    private const int SshModeIndex = 0;
-    private const int HttpModeIndex = 1;
-
     private readonly PlatformServices platform;
 
     /// <summary>The dispatcher of the thread that owns this screen; connection events are handled there.</summary>
@@ -63,10 +60,9 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         this.platform = platform;
         settings = new SettingsStore(platform.SettingsFolder);
-        SelectedModeIndex = "Http" == settings.Get("mode", "Ssh") ? HttpModeIndex : SshModeIndex;
         Host = settings.Get("host", "");
         User = settings.Get("user", ConnectionSettings.DefaultUser);
-        Port = settings.Get(PortSettingName, DefaultPort.ToString());
+        Port = settings.Get(PortSettingName, ConnectionSettings.DefaultSshPort.ToString());
         LoadLimits();
         SpeakSay = settings.GetBool("speakSay", true);
         SpeakAll = settings.GetBool("speakAll", false);
@@ -95,27 +91,17 @@ public sealed partial class MainViewModel : ViewModelBase
     public static string Title { get; } = "Script Runner " + (Assembly.GetEntryAssembly() ?? typeof(MainViewModel).Assembly)
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
-    public IReadOnlyList<string> Modes { get; } = new[] { "SSH (nothing to install on the Pi)", "HTTP (runner installed on the Pi)" };
-
     public ObservableCollection<FileEntry> Files { get; } = new();
 
     public ObservableCollection<string> Scripts { get; } = new();
 
     public bool CanRememberSecret => platform.Secrets.IsAvailable;
 
-    public bool IsSsh => SshModeIndex == SelectedModeIndex;
-
-    public string SecretLabel => IsSsh ? "Password" : "PIN";
-
     public bool CanRun => !IsRunning && !string.IsNullOrWhiteSpace(SelectedScript) && !string.IsNullOrWhiteSpace(Host);
 
     /// <summary>True while the app has a connection to a Pi open (from the first Run until Disconnect).</summary>
     [ObservableProperty]
     public partial bool IsConnected { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSsh), nameof(SecretLabel))]
-    public partial int SelectedModeIndex { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRun))]
@@ -206,11 +192,10 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool SpeakAll { get; set; }
 
-    private string PortSettingName => IsSsh ? "sshPort" : "httpPort";
+    private const string PortSettingName = "sshPort";
 
-    private int DefaultPort => IsSsh ? ConnectionSettings.DefaultSshPort : ConnectionSettings.DefaultHttpPort;
-
-    private string SecretKey => $"{(IsSsh ? "ssh" : "http")}:{User.Trim()}@{Host.Trim()}:{Port.Trim()}";
+    /// <summary>Where a remembered password is kept (the "ssh:" start matches passwords saved by earlier versions).</summary>
+    private string SecretKey => $"ssh:{User.Trim()}@{Host.Trim()}:{Port.Trim()}";
 
     /// <summary>Adds files that cannot be read again (Reload leaves them as they are).</summary>
     public void AddFiles(IEnumerable<(string Name, byte[] Data)> added) =>
@@ -268,7 +253,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         if (string.IsNullOrEmpty(Secret))
         {
-            ErrorText = IsSsh ? "Enter the Pi account's password." : "Enter the Pi's PIN.";
+            ErrorText = "Enter the Pi account's password.";
             return null;
         }
         if (!int.TryParse(TimeLimitSeconds, out int maxSeconds) || maxSeconds is < 0 or > ConnectionSettings.LongestMaxSeconds)
@@ -277,8 +262,7 @@ public sealed partial class MainViewModel : ViewModelBase
             return null;
         }
         SaveSettings();
-        return new ConnectionSettings(IsSsh ? ConnectionMode.Ssh : ConnectionMode.Http,
-            Host.Trim(), port, User.Trim(), Secret, maxSeconds);
+        return new ConnectionSettings(Host.Trim(), port, User.Trim(), Secret, maxSeconds);
     }
 
     [RelayCommand]
@@ -309,9 +293,7 @@ public sealed partial class MainViewModel : ViewModelBase
             if (connection is null || wanted != connectionSettings)
             {
                 await CloseConnectionAsync();
-                IRunnerConnection created = ConnectionMode.Ssh == wanted.Mode
-                    ? new SshRunnerConnection(wanted, settings)
-                    : new HttpRunnerConnection(wanted);
+                IRunnerConnection created = new SshRunnerConnection(wanted, settings);
                 // Events from a connection the app has since closed are ignored, so they cannot end a newer run.
                 created.EventReceived += e => ui.Post(() =>
                 {
@@ -443,8 +425,8 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Closes the connection to the Pi at any time and returns the app to Ready. A running script is stopped first:
-    /// in SSH mode closing the session sends it Ctrl+C; in HTTP mode the app asks the server to stop it.
+    /// Closes the connection to the Pi at any time and returns the app to Ready. Closing the session sends a running
+    /// script Ctrl+C.
     /// </summary>
     [RelayCommand]
     private async Task DisconnectAsync()
@@ -456,18 +438,6 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         platform.Speech.StopSpeaking();
         bool wasRunning = IsRunning;
-        if (wasRunning && connection is HttpRunnerConnection)
-        {
-            try
-            {
-                using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                await connection.StopAsync(limit.Token);
-            }
-            catch (Exception error) when (error is RunnerException or OperationCanceledException)
-            {
-                Append("[Could not ask the Pi to stop the script: " + error.Message + "]\n");
-            }
-        }
         Handle(parser.Flush());
         await CloseConnectionAsync();
         IsRunning = false;
@@ -492,7 +462,7 @@ public sealed partial class MainViewModel : ViewModelBase
         ShowOutput();
         try
         {
-            CommandResult result = await PiCommand.RunAsync(target with { Mode = ConnectionMode.Ssh }, settings, command,
+            CommandResult result = await PiCommand.RunAsync(target, settings, command,
                 timeout ?? TimeSpan.FromSeconds(piCommandSeconds));
             Append(result.Output.EndsWith('\n') || 0 == result.Output.Length ? result.Output : result.Output + "\n");
             Append($"[exit code {result.ExitCode?.ToString() ?? "unknown"}]\n");
@@ -558,12 +528,6 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             DiagnosticLog.Write(text);
         }
-    }
-
-    partial void OnSelectedModeIndexChanged(int value)
-    {
-        Port = settings.Get(PortSettingName, DefaultPort.ToString());
-        LoadRememberedSecret();
     }
 
     partial void OnRememberSecretChanged(bool value)
@@ -806,7 +770,6 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private void SaveSettings()
     {
-        settings.Set("mode", IsSsh ? "Ssh" : "Http");
         settings.Set("host", Host.Trim());
         settings.Set("user", User.Trim());
         settings.Set(PortSettingName, Port.Trim());

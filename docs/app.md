@@ -1,14 +1,10 @@
 # Script Runner app (Windows, macOS, Android)
 
-The Script Runner app does what the browser page does (upload a script, see its output live, type input, Stop
-with Ctrl+C, and hear `say()`, play sounds, and see images), with one addition: it can connect two ways.
-
-| Connection | What the Pi needs | Sign-in |
-| :--- | :--- | :--- |
-| **SSH** | Nothing beyond SSH and Python 3, which Raspberry Pi OS has | The Pi account's user name and password |
-| **HTTP** | The runner server from this repository ([installation.md](installation.md)) | The runner's PIN |
-
-Choose the connection in the drop-down at the top left.
+The Script Runner app runs a Python script on a Raspberry Pi: it uploads the script and its files, shows its output
+live, sends typed input, stops it with Ctrl+C, and speaks, plays, shows, graphs, and draws what the script sends with
+`runner_io`. It connects over SSH, signing in with the Pi account's user name and password, so the Pi needs nothing
+beyond SSH and Python 3, which Raspberry Pi OS has ([installation.md](installation.md)). An update to the app needs
+no change on the Pis.
 
 ## Install
 
@@ -30,9 +26,8 @@ the app cannot reach the Pi.
 
 ## Use
 
-1. Choose **SSH** or **HTTP**, then enter the Pi's IP address. The port fills in automatically (22 for SSH, 8000
-   for HTTP); change it only if your Pi uses a different one.
-2. For SSH, enter the user name (normally `pi`) and the account's password. For HTTP, enter the runner's PIN.
+1. Enter the Pi's IP address. The port is 22 (SSH's); change it only if your Pi uses a different one.
+2. Enter the user name (normally `pi`) and the account's password.
 3. **Add files…** (or drag files onto the box on the desktop): the `.py` file plus any sound or image files it uses.
    If you add more than one `.py` file, choose which one runs in the **Run:** list. When there are many files, the
    list scrolls instead of pushing the output down; drag the bar under it to make it taller or shorter (at most two
@@ -70,7 +65,7 @@ script, files, how it ended, and any error, then the output with the seconds fro
 folder with the files sent with the run as they were then, `plot.csv` when the script plotted, `drawing.svg` when it
 drew, and a `shown` folder with the files it showed.
 
-**Check robot** (SSH mode, beside **Run on Pi**) reports, without changing anything or moving the robot: the robot's
+**Check robot** (beside **Run on Pi**) reports, without changing anything or moving the robot: the robot's
 name, 32-bit or 64-bit system, and Python; free storage; whether the distance sensor (I2C 0x29) and the OLED display
 (0x3C or 0x3D) answer; whether the camera is detected; any other Python programs still running (an earlier run that
 did not end); and the RVR's battery level. Lines that need attention start with `!!`.
@@ -86,37 +81,33 @@ that is not allowed is reported and the previous one stays in effect. **Restore 
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
-| Time limit per run (s) | 300 | A run is stopped automatically after this long; 0 means no limit. Applies in both modes. |
+| Time limit per run (s) | 300 | A run is stopped automatically after this long; 0 means no limit. |
 | Files kept beside the output | 100 | Images and files from `show()`; the oldest is dropped past this |
 | Largest file (MB) | 20 | Larger files from `show()` and `play()` are not downloaded; the output says so |
 | Output kept (characters) | 200,000 | Older output is dropped past this |
-| Pi command time limit (s) | 30 | Longest a command in the Pi command box may run (SSH mode) |
+| Pi command time limit (s) | 30 | Longest a command in the Pi command box may run |
 | Local Python | automatic | Python that runs local files: a path or command; blank finds one |
 | Local load time limit (s) | 120 | Longest the local files may take to load when a run starts |
 | Local call time limit (s) | 60 | Longest one `remote_execute()` call may take on the laptop |
 | Reload changed files before each run | On | Each Run first reads the added files again (see Use, step 4) |
 | Arguments for *script* | none | Command-line arguments for the script selected in the **Run:** list (see below) |
 
-**Arguments for *script*** passes command-line arguments to the script on every run, as `sys.argv[1:]`, in both
-modes. Separate them with spaces, and put quotes around one that contains spaces: `2.0 --simulate "two words"`. Each
+**Arguments for *script*** passes command-line arguments to the script on every run, as `sys.argv[1:]`. Separate
+them with spaces, and put quotes around one that contains spaces: `2.0 --simulate "two words"`. Each
 script (by file name) keeps its own arguments, and they are kept when the app closes. They are not on the main screen,
 since they rarely change; when a script has some, the first line of its output shows them, for example
 `[Arguments: 2.0 --simulate]`, and **Save run…** records them. **Restore defaults** leaves them as they are.
 
-The Pi server has its own limits, set when it is installed: the default time limit (`--max-seconds`) and the largest
-upload per run (`--max-upload-mb`). See [installation.md](installation.md).
-
 **Disconnect** closes the app's connection to the Pi and returns the app to Ready. The app keeps its connection
-open between runs, so use Disconnect when the connection seems stuck or before switching Pis. A running script is
-stopped first: in SSH mode closing the session sends it Ctrl+C, and in HTTP mode the app asks the server to stop
-it. The next **Run** opens a new connection.
+open between runs, so use Disconnect when the connection seems stuck or before switching Pis. Closing the
+connection sends a running script Ctrl+C. The next **Run** opens a new connection.
 
 ### Diagnostics
 
 The app keeps a log of what it does (runs started and ended, buttons such as Stop and Disconnect, errors shown, local
 function calls) in a `logs` folder: `%APPDATA%\ScriptRunner\logs` on Windows,
 `~/Library/Application Support/ScriptRunner/logs` on macOS, and the app's private storage on Android. It never
-records passwords, PINs, typed Pi commands, or script output. Each day has its own file, and files older than 14 days
+records passwords, typed Pi commands, or script output. Each day has its own file, and files older than 14 days
 are deleted.
 
 When something unexpected goes wrong, the app saves a crash report (`crash-*.txt`) with the error's full details and
@@ -133,28 +124,28 @@ A crash inside native code (for example the graphics driver) can end the app bef
 operating system usually keeps its own record: on Windows, Event Viewer, Windows Logs, Application (".NET Runtime" and
 "Application Error" entries); on macOS, Console, Crash Reports (or `~/Library/Logs/DiagnosticReports`).
 
-### Commands on the Pi (SSH mode)
+### Commands on the Pi
 
-In SSH mode, a command box under the Run controls runs any command on the Pi and shows its output, for example
+A command box under the Run controls runs any command on the Pi and shows its output, for example
 `ps aux | grep python3`. Each command runs on its own short connection, so it works even while a script is
 running or its connection is stuck. Commands that wait for input do not work there, and the app stops waiting for
 a command after 30 seconds.
 
 **Force stop all Python** sends Ctrl+C to every Python program the account started on the Pi (including scripts
 started from the app or with `python3 -`), waits 2 seconds so `finally:` blocks can stop motors, then force-quits
-whatever is left, and lists anything still running. It does not stop the runner server. Use it when a script or a
-previous session is stuck.
+whatever is left, and lists anything still running. Use it when a script or a previous session is stuck.
 
 ### Speech, sound, and images
 
-Scripts use the same `runner_io` functions as with the browser page ([runner-io.md](runner-io.md)). In SSH mode the
-app copies `runner_io.py` next to the script on every run, so nothing needs to be installed on the Pi.
+Scripts use the `runner_io` functions ([runner-io.md](runner-io.md)). The app copies `runner_io.py` next to the
+script on every run, so nothing needs to be installed on the Pi, and a new release of the app brings the new
+`runner_io` with it.
 
 | Function | App behavior |
 | :--- | :--- |
 | `say(text)` | Spoken with the system's text-to-speech (Windows speech, macOS `say`, Android text-to-speech) |
 | `play(file)` | Played with the system's player. `.wav` works everywhere. macOS and Android also play `.mp3` (Android also `.ogg`); Windows plays `.mp3` only on computers that have its optional MPEG player, so use `.wav` for Windows users. |
-| `show(file)` | Shown beside the output, any kind of file. Images (`.png`, `.jpg`, `.gif`, `.bmp`, `.webp`) are shown as pictures; `.svg` is shown as a picture only in the browser page. Text files (`.csv`, `.txt`, `.json`, `.py`, and similar) are shown as a card with their first 20 lines. Other files are shown as a card with their name and size. |
+| `show(file)` | Shown beside the output, any kind of file. Images (`.png`, `.jpg`, `.gif`, `.bmp`, `.webp`) are shown as pictures; `.svg` files are shown as a card (save one to open it in a web browser). Text files (`.csv`, `.txt`, `.json`, `.py`, and similar) are shown as a card with their first 20 lines. Other files are shown as a card with their name and size. |
 
 Shown files are kept in the panel beside the output, in the order the script showed them, newest on screen as it
 arrives, across runs and **Clear output**, until **Clear all** (the number kept is a setting). ◀ and ▶ move between
@@ -177,14 +168,15 @@ a model's weights) are placed beside them. This lets heavy work, such as Ultraly
   its path.
 - Not available on Android, which has no Python.
 
-### Passwords and PINs
+### Passwords
 
-- **Remember (secure storage)** saves the password or PIN in the operating system's secure store: Windows
+- **Remember (secure storage)** saves the password in the operating system's secure store: Windows
   Credential Manager, the macOS Keychain, or (on Android) encrypted with a key held in the Android Keystore.
   It is never written to a file by the app, and it is off unless you check the box. Unchecking it deletes the
   saved copy.
-- The app's settings file (`settings.json` in the app's data folder) holds only the connection type, IP address,
-  ports, user name, speech options, and the SSH key fingerprints described below.
+- The app's settings file (`settings.json` in the app's data folder) holds the IP address, port, user name, the
+  options in **Settings** and beside the output, each script's arguments, and the SSH key fingerprints described
+  below. It never holds the password.
 
 ### SSH host keys
 
@@ -214,15 +206,14 @@ To stop the warning:
 
   This also removes the few seconds the check adds to every script's start, and its use of the internet.
 
-## SSH mode details
+## How runs work on the Pi
 
 For people maintaining the Pis:
 
 - Files are copied with SFTP to `~/script_runner_ssh/run` (replaced on every run), with two helper files:
   `runner_io.py` and `_script_runner_shim.py`.
 - The script runs as `python3 -u` in a terminal session (so `input()` works) under `flock` on
-  `/tmp/pi-script-runner.lock`. The runner server takes the same lock, so a script started from the app and
-  one started from the browser page never run at the same time.
+  `/tmp/pi-script-runner.lock`, so two students' apps connected to the same Pi never run scripts at the same time.
 - Stop sends `SIGINT` to the script's Python process only, then `SIGTERM`, then `SIGKILL`, 3 seconds apart.
 - If the connection drops while a script runs (Wi-Fi loss, laptop closed), the script receives `SIGHUP`, which
   the shim turns into `KeyboardInterrupt`, so the `finally:` block still runs.
@@ -233,7 +224,7 @@ The app is written in C# with .NET 10 and Avalonia, in the `app` folder:
 
 ```text
 app/
-  src/ScriptRunner.Core      Connections (SSH and HTTP) and the output parser; no user interface
+  src/ScriptRunner.Core      The SSH connection, the output parser, and the drawing; no user interface
   src/ScriptRunner.App       The screen, shared by desktop and Android
   src/ScriptRunner.Desktop   Windows, macOS, and Linux app
   src/ScriptRunner.Android   Android app

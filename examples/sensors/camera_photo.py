@@ -1,5 +1,5 @@
 """
-Take one photo with the Raspberry Pi camera and show it in the app (or browser page).
+Take one photo with the Raspberry Pi camera and show it in the app.
 
 Requires: a Raspberry Pi camera and the picamera library.
 """

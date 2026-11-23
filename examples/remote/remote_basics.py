@@ -1,8 +1,8 @@
 """
 remote_execute() basics: the robot calls functions that run on the laptop.
 
-Add remote_tools.py too, with "Local" checked beside it, then run this file. Needs only the app (the browser page
-cannot run local functions).
+Add remote_tools.py too, with "Local" checked beside it, then run this file. Needs the app on a computer with
+Python (Windows, macOS, or Linux; not Android).
 """
 import random
 

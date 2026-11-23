@@ -6,7 +6,7 @@ namespace ScriptRunner.App.Services;
 
 /// <summary>
 /// The app's saved settings (settings.json in the app's data folder): the last connection used and the SSH host
-/// key fingerprints seen so far. PINs and passwords are never saved here; see <see cref="ISecretStore"/>.
+/// key fingerprints seen so far. Passwords are never saved here; see <see cref="ISecretStore"/>.
 /// </summary>
 public sealed class SettingsStore : IHostKeyStore
 {

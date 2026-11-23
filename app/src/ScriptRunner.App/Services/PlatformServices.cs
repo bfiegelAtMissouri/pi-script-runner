@@ -16,7 +16,7 @@ public interface IAudioService
 }
 
 /// <summary>
-/// Keeps PINs and passwords in the operating system's secure store (Windows Credential Manager, macOS Keychain,
+/// Keeps passwords in the operating system's secure store (Windows Credential Manager, macOS Keychain,
 /// Android Keystore). Secrets are never written to the settings file.
 /// </summary>
 public interface ISecretStore

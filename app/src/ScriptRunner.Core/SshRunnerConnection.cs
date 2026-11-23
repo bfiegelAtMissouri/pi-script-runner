@@ -17,7 +17,7 @@ public interface IHostKeyStore
 /// <summary>
 /// Runs scripts on a Pi directly over SSH; nothing needs to be installed on the Pi. The files are uploaded with
 /// SFTP to ~/script_runner_ssh/run, and the script runs in a terminal session (so input() works) under flock, so
-/// it cannot run at the same time as a script started from the Pi's runner server.
+/// it cannot run at the same time as a script started from another copy of the app.
 /// </summary>
 public sealed class SshRunnerConnection : IRunnerConnection
 {

@@ -1,7 +1,7 @@
 """
 Drive a Sphero RVR in a square, with spoken updates and a safe Stop.
 
-Requires the Sphero RVR SDK on the Pi. Pressing Stop (or Esc) on the page
+Requires the Sphero RVR SDK on the Pi. Pressing Stop (or Esc) in the app
 raises KeyboardInterrupt here, so the finally: block always stops the motors.
 """
 import sys

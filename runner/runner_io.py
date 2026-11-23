@@ -1,5 +1,5 @@
 """
-runner_io: send speech, sounds, and images from a script to the Pi Script Runner page.
+runner_io: send speech, sounds, images, graphs, and drawings from a script to the Script Runner app.
 
     from runner_io import say, play, show
 
@@ -20,12 +20,11 @@ A script can also draw a picture, such as a map, that the app shows as it is dra
     draw.save_svg("/tmp/map.svg")              # the same picture as a file on the Pi
     draw.save("~/maps/room.json")              # a later run can draw.load() it and carry on
 
-Files for play() and show() must be in the same folder as the script (drop them onto
-the page along with the .py file, or have the script create them) or in /tmp
-(for example show("/tmp/photo.jpg")).
+Files for play() and show() must be in the same folder as the script (add them in the app along with the .py file,
+or have the script create them) or in /tmp (for example show("/tmp/photo.jpg")).
 
-Each call prints one tagged line that the Runner page acts on and hides.
-Run outside the Runner page, the tagged lines simply appear as text.
+Each call prints one tagged line that the app acts on and hides. Run outside the app, the tagged lines simply appear
+as text.
 
 With the app, a script can also call Python functions that run on the laptop:
 
@@ -93,7 +92,7 @@ def plot(*values: float, **named_values: float) -> None:
     Returns: nothing
 
     Call it in a loop, for example once per sensor reading. Values that are not numbers are skipped. The app shows
-    the graph beside the output and can save the numbers as a CSV file; the browser page shows them as text.
+    the graph beside the output and can save the numbers as a CSV file.
     """
     points = {}
     for index, value in enumerate(values, 1):
@@ -112,8 +111,8 @@ def plot(*values: float, **named_values: float) -> None:
 
 
 # ---- Drawing ----------------------------------------------------------------------------------------------
-# The app (ScriptRunner.Core/ScriptDrawing.cs) and the browser page (index.html) draw the same messages the same way;
-# the app's saved SVG is the same, character for character, as save_svg() writes here.
+# The app (ScriptRunner.Core/ScriptDrawing.cs) draws the same messages the same way; its saved SVG is the same,
+# character for character, as save_svg() writes here.
 
 _COLOR_NAMES = frozenset("""
 aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood
@@ -287,7 +286,7 @@ class Drawing:
                  view to everything drawn (the default)
                  grid - the distance between grid lines, in the drawing's units, or None for no grid
                  background - the color behind the whole picture, or "none" (the default) for a transparent
-                 background in the saved SVG file (the app and the browser page show it on white)
+                 background in the saved SVG file (the app shows it on white)
         Returns: nothing
 
         Fixed edges keep a map from rescaling each time something new is drawn near its edge. Each call sets all
@@ -747,7 +746,7 @@ def remote_execute(function_name: str, *args: Any) -> Any:
     Raises:  RemoteExecutionError if the function raised an error on the laptop or could not be called
 
     The script waits until the laptop answers, so stop the motors before a call that takes a while.
-    Works only when the script was started from the app (the browser page cannot run local functions).
+    Works only when the script was started from the app on a computer with Python (not Android).
     """
     _next_call_id[0] += 1
     call_id = _next_call_id[0]

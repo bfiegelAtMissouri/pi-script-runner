@@ -31,18 +31,16 @@
 
     <!-- Connection -->
     <WrapPanel DockPanel.Dock="Top">
-      <ComboBox ItemsSource="{Binding Modes}" SelectedIndex="{Binding SelectedModeIndex}"
-                AutomationProperties.Name="Connection type" MinWidth="250" />
       <TextBox Text="{Binding Host}" PlaceholderText="Pi IP address" Width="160"
                AutomationProperties.Name="Pi IP address" />
       <TextBox Text="{Binding Port}" PlaceholderText="Port" Width="72" AutomationProperties.Name="Port" />
-      <TextBox Text="{Binding User}" PlaceholderText="User" Width="100" IsVisible="{Binding IsSsh}"
+      <TextBox Text="{Binding User}" PlaceholderText="User" Width="100"
                AutomationProperties.Name="User name" />
-      <TextBox Text="{Binding Secret}" PlaceholderText="{Binding SecretLabel}" PasswordChar="•" Width="150"
-               AutomationProperties.Name="{Binding SecretLabel}" />
+      <TextBox Text="{Binding Secret}" PlaceholderText="Password" PasswordChar="•" Width="150"
+               AutomationProperties.Name="Password" />
       <CheckBox IsChecked="{Binding RememberSecret}" IsVisible="{Binding CanRememberSecret}"
                 Content="Remember (secure storage)" />
-      <Button Content="Forget saved SSH key" Command="{Binding ForgetHostKeyCommand}" IsVisible="{Binding IsSsh}" />
+      <Button Content="Forget saved SSH key" Command="{Binding ForgetHostKeyCommand}" />
       <ToggleButton Content="Examples" IsChecked="{Binding IsExamplesOpen}"
                     ToolTip.Tip="Example scripts built into the app, ready to run" />
       <ToggleButton Content="Settings" IsChecked="{Binding IsSettingsOpen}" />
@@ -112,7 +110,7 @@
                   ToolTip.Tip="Each Run first reads the added files again, so edits saved in another editor are what runs" />
         <TextBlock Text="Diagnostics" FontWeight="SemiBold" Margin="0,8,0,0" />
         <TextBlock TextWrapping="Wrap" Opacity="0.75"
-                   Text="The app keeps a log of what it does (never passwords, PINs, or script output) and saves a report when something unexpected goes wrong. Send the report with a description of what happened." />
+                   Text="The app keeps a log of what it does (never passwords or script output) and saves a report when something unexpected goes wrong. Send the report with a description of what happened." />
         <SelectableTextBlock Text="{Binding LogsFolder}" FontFamily="Consolas, Menlo, monospace" TextWrapping="Wrap" />
         <WrapPanel>
           <Button Content="Open logs folder" Click="OnOpenLogsFolder" IsVisible="{Binding CanOpenLogsFolder}" />
@@ -236,8 +234,8 @@
       <CheckBox IsChecked="{Binding SpeakAll}" Content="Speak all output" />
     </WrapPanel>
 
-    <!-- Commands on the Pi (SSH only): each runs on its own connection, so it works even if a script is stuck. -->
-    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8" IsVisible="{Binding IsSsh}">
+    <!-- Commands on the Pi: each runs on its own connection, so it works even if a script is stuck. -->
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
       <Button DockPanel.Dock="Right" Content="Force stop all Python" Command="{Binding ForceStopCommand}"
               IsEnabled="{Binding CanSendPiCommand}" Margin="8,0,0,0"
               ToolTip.Tip="Ctrl+C to every Python program you started on the Pi, then force-quit after 2 seconds" />

@@ -6,7 +6,7 @@ using ScriptRunner.App.Services;
 namespace ScriptRunner.Desktop.Platform;
 
 /// <summary>
-/// PINs and passwords in the macOS Keychain, as generic passwords under the service "ScriptRunner", using the
+/// Passwords in the macOS Keychain, as generic passwords under the service "ScriptRunner", using the
 /// Security framework's SecItem functions. Any failure is reported as "not saved" rather than crashing the app.
 /// </summary>
 [SupportedOSPlatform("macos")]

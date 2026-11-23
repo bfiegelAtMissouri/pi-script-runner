@@ -10,7 +10,7 @@ The first run:
   4. Saves the drawing as room.json and sends it to the laptop with show().
 
 To carry on in the next run:
-  - In the app, click "Save..." on the room.json card (in the browser page, its Save link) and keep the file.
+  - In the app, click "Save..." on the room.json card and keep the file.
   - Add room.json with this script, then press Run. The script finds room.json next to it, loads it, and the robot
     carries on from where it stopped. Add the new room.json each time to keep going; after the last target the
     tour starts again.
@@ -114,7 +114,7 @@ def main():
     show(draw.save(SAVE_TO))
     draw.save_svg("/tmp/room.svg")
     print("Saved the drawing as %s and sent it to the laptop as room.json." % SAVE_TO)
-    print("To carry on: save room.json from the app (or the browser page), add it with this script, and Run again.")
+    print("To carry on: save room.json from the app, add it with this script, and Run again.")
 
 
 main()

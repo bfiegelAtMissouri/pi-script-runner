@@ -58,7 +58,6 @@ public sealed class StudentHelpUiTests
             model = new MainViewModel(platform);
             window = new Window { Width = 1000, Height = 760, Content = new MainView { DataContext = model } };
             window.Show();
-            model.SelectedModeIndex = 0;
             model.Host = host!;
             model.Port = Environment.GetEnvironmentVariable("SCRIPT_RUNNER_TEST_SSH_PORT") ?? "22";
             model.User = Environment.GetEnvironmentVariable("SCRIPT_RUNNER_TEST_SSH_USER") ?? "pi";

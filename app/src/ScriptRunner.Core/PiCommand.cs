@@ -19,8 +19,7 @@ public static class PiCommand
     /// <summary>
     /// Sends Ctrl+C to every Python program this account started by name (scripts from this app, and scripts piped
     /// in with "python3 -"), waits 2 seconds so their finally: blocks can run (for example, to stop motors), then
-    /// force-quits any that remain, and lists what is still running. The runner server, which systemd starts as
-    /// /usr/bin/python3, is not affected.
+    /// force-quits any that remain, and lists what is still running.
     /// </summary>
     public const string ForceStopAllPython =
         "me=$(id -u); " +

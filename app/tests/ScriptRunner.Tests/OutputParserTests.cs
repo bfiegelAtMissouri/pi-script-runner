@@ -125,7 +125,7 @@ public sealed class OutputParserTests
     [Fact]
     public void SettingsNeverPrintTheSecret()
     {
-        var settings = new ConnectionSettings(ConnectionMode.Ssh, "pi.local", 22, "pi", "not-a-real-secret");
+        var settings = new ConnectionSettings("pi.local", 22, "pi", "not-a-real-secret");
         Assert.DoesNotContain("not-a-real-secret", settings.ToString(), StringComparison.Ordinal);
     }
 

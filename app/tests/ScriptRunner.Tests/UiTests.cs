@@ -42,7 +42,6 @@ public sealed class UiTests
             model = new MainViewModel(ScriptRunner.App.App.Platform);
             window = new Window { Width = 1000, Height = 700, Content = new MainView { DataContext = model } };
             window.Show();
-            model.SelectedModeIndex = 0;                                       // SSH
             model.Host = host!;
             model.Port = Environment.GetEnvironmentVariable("SCRIPT_RUNNER_TEST_SSH_PORT") ?? "22";
             model.User = Environment.GetEnvironmentVariable("SCRIPT_RUNNER_TEST_SSH_USER") ?? "pi";

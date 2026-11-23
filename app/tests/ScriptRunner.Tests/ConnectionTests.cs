@@ -1,7 +1,5 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using ScriptRunner.Core;
 using Xunit;
@@ -9,17 +7,13 @@ using Xunit;
 namespace ScriptRunner.Tests;
 
 /// <summary>
-/// The same end-to-end session run through both connection types against real servers:
-/// HTTP against runner/script_runner.py (started by the test), and SSH against an SSH server named by
-/// environment variables (skipped when they are not set):
+/// End-to-end sessions against a real SSH server named by environment variables (skipped when they are not set):
 ///   SCRIPT_RUNNER_TEST_SSH_HOST, SCRIPT_RUNNER_TEST_SSH_PORT, SCRIPT_RUNNER_TEST_SSH_USER,
 ///   SCRIPT_RUNNER_TEST_SSH_PASSWORD
 /// The SSH account needs python3, flock, and pkill (as on Raspberry Pi OS).
 /// </summary>
 public sealed class ConnectionTests
 {
-    internal const string TestPin = "4321";
-
     private const string SessionScript = """
         import os, shutil, time
         from runner_io import say, show
@@ -40,30 +34,6 @@ public sealed class ConnectionTests
                 os.remove("TMP_COPY")
             print("FINALLY: cleanup ran")
         """;
-
-    [Fact]
-    public async Task HttpSession()
-    {
-        string? python = FindPython();
-        Assert.SkipWhen(python is null, "python3 is not installed");
-        using var server = PiServer.Start(python!, TestPin);
-        var settings = new ConnectionSettings(ConnectionMode.Http, "127.0.0.1", server.Port, "", TestPin);
-        await using var connection = new HttpRunnerConnection(settings);
-        await RunSessionAsync(connection);
-    }
-
-    [Fact]
-    public async Task HttpWrongPinIsReported()
-    {
-        string? python = FindPython();
-        Assert.SkipWhen(python is null, "python3 is not installed");
-        using var server = PiServer.Start(python!, TestPin);
-        var settings = new ConnectionSettings(ConnectionMode.Http, "127.0.0.1", server.Port, "", "0000");
-        await using var connection = new HttpRunnerConnection(settings);
-        var error = await Assert.ThrowsAsync<RunnerException>(
-            () => connection.StartAsync(new[] { Script("a.py", "print(1)") }, "a.py", cancellationToken: TestContext.Current.CancellationToken));
-        Assert.Equal("Wrong PIN.", error.Message);
-    }
 
     [Fact]
     public async Task SshSession()
@@ -98,25 +68,6 @@ public sealed class ConnectionTests
         Assert.Contains("has changed", error.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task HttpTimeLimitFromTheAppStopsTheScript()
-    {
-        string? python = FindPython();
-        Assert.SkipWhen(python is null, "python3 is not installed");
-        using var server = PiServer.Start(python!, TestPin);           // the server's own default is 300 s
-        var settings = new ConnectionSettings(ConnectionMode.Http, "127.0.0.1", server.Port, "", TestPin, MaxSeconds: 2);
-        await using var connection = new HttpRunnerConnection(settings);
-        var log = new EventLog(connection);
-        await connection.StartAsync(new[]
-        {
-            Script("loop.py", "import time\ntry:\n    while True:\n        time.sleep(0.2)\nfinally:\n    print('FINALLY ran')\n"),
-        }, "loop.py", cancellationToken: TestContext.Current.CancellationToken);
-        ExitedEvent exited = await log.WaitForExitAsync(TimeSpan.FromSeconds(15));
-        Assert.True(exited.Stopped);
-        Assert.Contains("Time limit of 2 s", log.Notices, StringComparison.Ordinal);
-        Assert.Contains("FINALLY ran", log.Output, StringComparison.Ordinal);
-    }
-
     /// <summary>Arguments that a shell would change if they were not quoted: spaces, quotes, $, ;, *, and \.</summary>
     private static readonly string[] AwkwardArguments = { "2.0", "--simulate", "two words", "it's", "say \"hi\"", "$HOME;ls *", "back\\slash", "" };
 
@@ -128,16 +79,6 @@ public sealed class ConnectionTests
         ConnectionSettings? settings = SshSettings();
         Assert.SkipWhen(settings is null, "SCRIPT_RUNNER_TEST_SSH_* environment variables are not set");
         await using var connection = new SshRunnerConnection(settings!, new MemoryHostKeys());
-        await AssertArgumentsArriveAsync(connection);
-    }
-
-    [Fact]
-    public async Task HttpPassesArgumentsExactly()
-    {
-        string? python = FindPython();
-        Assert.SkipWhen(python is null, "python3 is not installed");
-        using var server = PiServer.Start(python!, TestPin);
-        await using var connection = new HttpRunnerConnection(new ConnectionSettings(ConnectionMode.Http, "127.0.0.1", server.Port, "", TestPin));
         await AssertArgumentsArriveAsync(connection);
     }
 
@@ -197,33 +138,11 @@ public sealed class ConnectionTests
     }
 
     [Fact]
-    public async Task HttpStopEndsAScriptThatDoesNotCatchCtrlC()
-    {
-        string? python = FindPython();
-        Assert.SkipWhen(python is null, "python3 is not installed");
-        using var server = PiServer.Start(python!, TestPin);
-        await using var connection = new HttpRunnerConnection(
-            new ConnectionSettings(ConnectionMode.Http, "127.0.0.1", server.Port, "", TestPin));
-        await StopUncaughtAsync(connection);
-    }
-
-    [Fact]
     public async Task SshStopEndsAScriptWithBackgroundThreadsWaitingForInput()
     {
         ConnectionSettings? settings = SshSettings();
         Assert.SkipWhen(settings is null, "SCRIPT_RUNNER_TEST_SSH_* environment variables are not set");
         await using var connection = new SshRunnerConnection(settings!, new MemoryHostKeys());
-        await StopSdkLikeScriptAsync(connection);
-    }
-
-    [Fact]
-    public async Task HttpStopEndsAScriptWithBackgroundThreadsWaitingForInput()
-    {
-        string? python = FindPython();
-        Assert.SkipWhen(python is null, "python3 is not installed");
-        using var server = PiServer.Start(python!, TestPin);
-        await using var connection = new HttpRunnerConnection(
-            new ConnectionSettings(ConnectionMode.Http, "127.0.0.1", server.Port, "", TestPin));
         await StopSdkLikeScriptAsync(connection);
     }
 
@@ -370,7 +289,7 @@ public sealed class ConnectionTests
         }
         int port = int.TryParse(Environment.GetEnvironmentVariable("SCRIPT_RUNNER_TEST_SSH_PORT"), out int p) ? p : 22;
         string user = Environment.GetEnvironmentVariable("SCRIPT_RUNNER_TEST_SSH_USER") ?? ConnectionSettings.DefaultUser;
-        return new ConnectionSettings(ConnectionMode.Ssh, host, port, user, password);
+        return new ConnectionSettings(host, port, user, password);
     }
 
     internal static string? FindPython()
@@ -389,7 +308,7 @@ public sealed class ConnectionTests
     internal static string RepoRoot()
     {
         string? dir = AppContext.BaseDirectory;
-        while (dir is not null && !File.Exists(Path.Combine(dir, "runner", "script_runner.py")))
+        while (dir is not null && !File.Exists(Path.Combine(dir, "runner", "runner_io.py")))
         {
             dir = Path.GetDirectoryName(dir);
         }
@@ -446,71 +365,4 @@ public sealed class ConnectionTests
         }
     }
 
-    /// <summary>runner/script_runner.py on a free port, with a temporary home folder.</summary>
-    internal sealed class PiServer : IDisposable
-    {
-        private readonly Process process;
-        private readonly string home;
-
-        private PiServer(Process process, string home, int port)
-        {
-            this.process = process;
-            this.home = home;
-            Port = port;
-        }
-
-        public int Port { get; }
-
-        public static PiServer Start(string python, string pin)
-        {
-            int port;
-            using (var probe = new TcpListener(IPAddress.Loopback, 0))
-            {
-                probe.Start();
-                port = ((IPEndPoint)probe.LocalEndpoint).Port;
-            }
-            string home = Directory.CreateTempSubdirectory("script-runner-home").FullName;
-            var start = new ProcessStartInfo(python)
-            {
-                ArgumentList = { Path.Combine(RepoRoot(), "runner", "script_runner.py"), "--pin", pin, "--port", port.ToString() },
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            start.Environment["HOME"] = home;
-            start.Environment["SCRIPT_RUNNER_LOCK_FILE"] = Path.Combine(home, "run.lock");   // not shared with other tests
-            Process process = Process.Start(start) ?? throw new InvalidOperationException("Could not start python3");
-            var server = new PiServer(process, home, port);
-            var watch = Stopwatch.StartNew();
-            while (watch.Elapsed < TimeSpan.FromSeconds(10))
-            {
-                try
-                {
-                    using var client = new TcpClient();
-                    client.Connect(IPAddress.Loopback, port);
-                    return server;
-                }
-                catch (SocketException)
-                {
-                    Thread.Sleep(100);
-                }
-            }
-            server.Dispose();
-            throw new InvalidOperationException("The Pi server did not start.");
-        }
-
-        public void Dispose()
-        {
-            try
-            {
-                process.Kill(true);
-                process.WaitForExit(5000);
-            }
-            catch (InvalidOperationException)
-            {
-                // already exited
-            }
-            process.Dispose();
-            Directory.Delete(home, true);
-        }
-    }
 }

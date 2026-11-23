@@ -1,95 +1,41 @@
-# Installation
+# Getting a Pi ready
 
-The runner server is installed once on each Raspberry Pi. Nothing is installed
-on the computers or phones that use it; they only need a web browser. (The
-Script Runner app's SSH mode needs no installation on the Pi at all; see
-[app.md](app.md).)
+Nothing is installed on the Pi for Script Runner. The app connects over SSH, uploads each script with the
+`runner_io` helper module, and runs it. When the app is updated, students install the new release, and the robots
+need no change.
 
-## Requirements
+## What the Pi needs
 
-- A Raspberry Pi running Raspberry Pi OS (or another Linux with systemd)
-- Python 3.7 or newer (the server uses only the Python standard library)
-- SSH access to the Pi with an account that can use `sudo`
-- A network on which the browser can reach the Pi on the chosen port (default 8000)
+- Raspberry Pi OS (or another Linux) with SSH turned on (`sudo raspi-config`, **Interface Options**, **SSH**).
+- An account with a password that students use to sign in, normally `pi`.
+- Python 3.7 or newer as `python3` for that account, with the libraries the scripts import (for example the Sphero
+  SDK and the Qwiic libraries). The app runs `python3` the way an SSH login finds it, so a virtual environment put
+  first on the account's `PATH` (as the course's robot setup does) is the one scripts use.
+- `flock` and `pkill`, which Raspberry Pi OS has.
+- A network on which students' computers can reach the Pi on the SSH port (22).
 
-## Install
+## Removing the old runner service
 
-The steps below copy the `runner` folder to the Pi and register it as a service
-that starts when the Pi boots. Run them from a clone of this repository.
-
-**Windows (PowerShell)**
-
-```powershell
-scp -r .\runner pi@<IP>:~/pi-script-runner
-ssh -t pi@<IP> "cd ~/pi-script-runner && sudo python3 install_service.py <PIN>"
-```
-
-**macOS or Linux**
-
-```bash
-scp -r ./runner pi@<IP>:~/pi-script-runner
-ssh -t pi@<IP> "cd ~/pi-script-runner && sudo python3 install_service.py <PIN>"
-```
-
-Replace `<IP>` with the Pi's IP address and `<PIN>` with the PIN users will
-enter on the page (letters and digits only). `sudo` asks for the Pi account's
-password once.
-
-Then open `http://<IP>:8000` in a browser.
-
-### Installer options
-
-```text
-sudo python3 install_service.py <PIN> [--port 8000] [--max-seconds 300] [--max-upload-mb 20] [--python PATH]
-python3 install_service.py <PIN> --print     # show the service file without installing
-```
-
-| Option | Default | Meaning |
-| :--- | :--- | :--- |
-| `<PIN>` | (required) | PIN users enter on the page |
-| `--port` | 8000 | TCP port the page is served on |
-| `--max-upload-mb` | 20 | Largest upload per run, all files combined, in megabytes |
-| `--max-seconds` | 300 | Default time limit per run, in seconds (0 = no limit); the app and page can set their own per run |
-| `--python` | `/usr/bin/python3` | Python that runs the server and the scripts; use a virtual environment's `bin/python3` when the robot libraries are installed in one |
-
-The service runs as the user who ran `sudo` (normally `pi`), so scripts can use
-Python packages installed for that user, such as packages in `~/.local`.
-
-## Manage the service
-
-```bash
-systemctl status pi-script-runner          # is it running?
-sudo systemctl restart pi-script-runner    # restart it
-journalctl -u pi-script-runner -n 50       # recent log lines
-```
-
-## Change the PIN, port, or time limit
-
-Run the installer again with the new values. It replaces the service file and
-restarts the service.
-
-## Update to a newer version
-
-Copy the `runner` folder again (the same `scp` command), then restart the service:
-
-```bash
-ssh -t pi@<IP> "sudo systemctl restart pi-script-runner"
-```
-
-## Uninstall
+Earlier versions installed a runner server on each Pi for a browser page and the app's HTTP mode. Neither exists
+any more. The service does no harm if it is left running, but it keeps listening on its port (8000) for a page that
+no longer exists. To remove it, run these on the Pi (for example in the app's command box, or over SSH):
 
 ```bash
 sudo systemctl disable --now pi-script-runner
 sudo rm /etc/systemd/system/pi-script-runner.service
-rm -r ~/pi-script-runner ~/script_runner_runs
+sudo systemctl daemon-reload
+rm -rf ~/pi-script-runner ~/script_runner_runs
 ```
+
+Leave `~/script_runner_ssh`: it is the folder the app uploads scripts to.
 
 ## Troubleshooting
 
 | Symptom | Likely cause and fix |
 | :--- | :--- |
-| The page does not load | Check that the service is running (`systemctl status`). If SSH to the Pi works but the page does not, the network may block the port; try another `--port`. |
-| "Wrong PIN" | The PIN is case-sensitive. Re-run the installer to set a new one. |
-| A script cannot import a package | Install the package for the account the service runs as (normally `pi`), for example `pip3 install --user <package>`. |
-| `ModuleNotFoundError: runner_io` when running a script without the page | `runner_io.py` is found automatically only when the script runs through the page. Copy it next to the script to run it another way. |
-| "A script is already running" | Only one script runs at a time. Press Stop on the page that started it, or wait for the time limit. |
+| The app cannot connect | Check the IP address and that the computer is on the same network as the Pi. Check that SSH is on: `ssh pi@<IP>` from a terminal should ask for the password. |
+| "The Pi did not accept the user name or password" | Check the user name (normally `pi`); the password is case-sensitive. |
+| The app refuses to connect because the Pi's SSH key changed | Expected after the Pi's system is reinstalled; press **Forget saved SSH key** and connect again. Otherwise another computer may be using that address. |
+| A script cannot import a package | Install the package for the account students sign in as, in the Python that `python3` runs for an SSH login. |
+| "Another script is already running on this Pi" | Only one script from the app runs on a Pi at a time, from any computer. Stop it in the app that started it, wait for its time limit, or use **Force stop all Python**. |
+| `ModuleNotFoundError: runner_io` when running a script outside the app | The app uploads `runner_io.py` with each script; elsewhere, copy it next to the script or install the `runner_io` package ([runner-io.md](runner-io.md#completion-and-help-in-your-editor)). |

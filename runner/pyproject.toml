@@ -1,7 +1,7 @@
 # Packages runner_io (only that module from this folder) so it can be installed on a computer, where editors use it
 # for completion and help. Each app release includes it as a wheel; to install from a copy of the repository instead:
 #     python -m pip install <repository folder>/runner
-# The Pi does not need this: the app and the runner server provide runner_io to every script they run.
+# The Pi does not need this: the app uploads runner_io with every script it runs.
 [build-system]
 requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"

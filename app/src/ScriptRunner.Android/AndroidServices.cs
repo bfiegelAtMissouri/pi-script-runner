@@ -94,7 +94,7 @@ internal sealed class AndroidAudio : IAudioService
 }
 
 /// <summary>
-/// PINs and passwords encrypted with an AES key held in the Android Keystore (the key never leaves the
+/// Passwords encrypted with an AES key held in the Android Keystore (the key never leaves the
 /// Keystore), stored in this app's private preferences. Any failure is reported as "not saved".
 /// </summary>
 internal sealed class AndroidKeystoreSecretStore : ISecretStore

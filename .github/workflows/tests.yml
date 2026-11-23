@@ -1,7 +1,7 @@
 # Pi Script Runner build pipeline (GitHub Actions).
 #
 # Every push, and every press of "Run workflow" on the Actions tab:
-#   1. runs the Pi server's Python tests and the app's C# tests (the C# tests include real SSH sessions against an
+#   1. runs runner_io's Python tests and the app's C# tests (the C# tests include real SSH sessions against an
 #      SSH server started on the runner, with a random password generated for that run only);
 #   2. on main (or "Run workflow"), builds the Windows program, the Mac app (Apple Silicon and Intel), the
 #      Android app, and the runner_io package for students' computers (a wheel, for editor completion and help);
@@ -28,7 +28,7 @@ env:
 
 jobs:
   python:
-    name: Pi server tests
+    name: Python tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -39,17 +39,13 @@ jobs:
         run: |
           pip install vermin
           vermin --target=3.7- --no-tips --violations runner/ examples/ app/src/ScriptRunner.Core/Remote/
-      - name: Install browser test dependencies
-        run: |
-          pip install playwright
-          python -m playwright install --with-deps chromium
       - name: Run tests
         run: python -m unittest discover -s tests -v
       - name: Check the runner_io package (builds, holds only runner_io, installs, and imports)
         run: |
           python -m pip wheel --no-deps -w "$RUNNER_TEMP/wheel" runner/
           python -m zipfile -l "$RUNNER_TEMP"/wheel/runner_io-*.whl | tee "$RUNNER_TEMP/wheel.txt"
-          if grep -E "script_runner|install_service|index.html" "$RUNNER_TEMP/wheel.txt"; then
+          if grep -E "\.(py|html)\b" "$RUNNER_TEMP/wheel.txt" | grep -v "runner_io\.py"; then
             echo "::error::The runner_io package holds files other than runner_io.py."; exit 1
           fi
           python -m venv "$RUNNER_TEMP/venv"

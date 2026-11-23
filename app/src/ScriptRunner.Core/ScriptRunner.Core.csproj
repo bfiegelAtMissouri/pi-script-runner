@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Connections to a Raspberry Pi (HTTP to the Pi's runner server, or SSH directly) and the output parser.
+  <!-- The SSH connection to a Raspberry Pi and the output parser.
        No user interface code, so the desktop and Android apps and the tests all share it. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>

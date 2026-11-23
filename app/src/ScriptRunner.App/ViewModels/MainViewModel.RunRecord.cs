@@ -34,7 +34,7 @@ public sealed partial class MainViewModel
         var heading = new StringBuilder();
         heading.AppendLine("Script Runner run");
         heading.AppendLine($"Started:  {recordStarted:yyyy-MM-dd HH:mm:ss}");
-        heading.AppendLine($"Robot:    {target.Host} ({(ConnectionMode.Ssh == target.Mode ? "SSH" : "HTTP")}, user {target.User})");
+        heading.AppendLine($"Robot:    {target.Host} (user {target.User})");
         heading.AppendLine($"Script:   {script}");
         if (0 < arguments.Count)
         {

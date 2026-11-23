@@ -1,8 +1,7 @@
 # The `runner_io` helper module
 
-`runner_io` lets a script send speech, sounds, images, graphs, and drawings to the browser page
-or app that started it. The runner server and the app's SSH mode both put it on
-the script's import path automatically.
+`runner_io` lets a script send speech, sounds, images, graphs, and drawings to the Script Runner app that started
+it. The app uploads it with every script, next to it, so it is always importable and always the app's own version.
 
 ```python
 from runner_io import say, play, show, plot, draw
@@ -10,12 +9,12 @@ from runner_io import say, play, show, plot, draw
 
 ## Functions
 
-| Function | Effect in the browser |
+| Function | Effect in the app |
 | :--- | :--- |
-| `say(text)` | Speaks `text` with the browser's built-in text-to-speech |
-| `play(filename)` | Plays a sound file (`.wav`, `.mp3`, `.ogg`) |
-| `show(filename)` | Sends any file to the page and keeps it there with a Save link: images are displayed, text files (`.csv`, `.txt`, `.json`, ...) show their first lines, and other files show their name and size |
-| `plot(name=value, ...)` | Adds numbers to a live graph, one line per name (app only; the browser page shows the numbers as text). `plot(value)` with no name plots it as "value" |
+| `say(text)` | Speaks `text` with the computer's text-to-speech |
+| `play(filename)` | Plays a sound file (`.wav` everywhere; see [app.md](app.md#speech-sound-and-images) for `.mp3` and `.ogg`) |
+| `show(filename)` | Sends any file to the app, which keeps it beside the output and can save it: images are displayed, text files (`.csv`, `.txt`, `.json`, ...) show their first lines, and other files show their name and size |
+| `plot(name=value, ...)` | Adds numbers to a live graph, one line per name. `plot(value)` with no name plots it as "value" |
 | `draw.line(...)`, `draw.marker(...)`, ... | Draws a picture, such as a map, shown as it is drawn and saved as an SVG file. See [Drawing](#drawing) |
 
 `plot()` is meant for a loop, one call per reading:
@@ -34,7 +33,7 @@ Values that are not numbers are skipped.
 
 `draw` makes a picture of lines, shapes, markers, and text, for example a map of a room. The app shows it beside the
 output as it is drawn, and **Save drawing…** saves it as an SVG file (it opens in a web browser and in most drawing
-programs). The browser page shows it too, with a Save link. `draw.save_svg(path)` writes the same file on the Pi, so a
+programs). `draw.save_svg(path)` writes the same file on the Pi, so a
 script run without the app still has its picture.
 
 ```python
@@ -98,7 +97,7 @@ Sizes:
 
 Colors are web color names (`"red"`, `"gray"`, `"steelblue"`, `"lightgreen"`, ...), `"#RRGGBB"`, or `"none"`. The
 default `color` is black and the default `fill` is none. The default `background` is none: the saved SVG file is
-transparent, and the app and the browser page show it on white, as a web browser shows the file. The grid is drawn
+transparent, and the app shows it on white, as a web browser shows the file. The grid is drawn
 over the background and under the shapes, so shapes filled with a color hide it. A color that is not one of these raises `ValueError`, as
 does a point that is not a pair of numbers.
 
@@ -131,8 +130,7 @@ They also work within one run: `draw.save("/tmp/before.json")`, then `draw.clear
 `draw.canvas()` to reset its settings too), then later `draw.load("/tmp/before.json")` to bring the saved drawing back.
 
 To keep a drawing with the student rather than on the robot, send it to the laptop and add it with the script next
-time: `show(draw.save("/tmp/room.json"))` sends it (save it from its card in the app, or with its Save link in the
-browser page), and a `room.json` added with the script is put next to it on the Pi, so `draw.load("room.json")`
+time: `show(draw.save("/tmp/room.json"))` sends it (save it from its card in the app), and a `room.json` added with the script is put next to it on the Pi, so `draw.load("room.json")`
 finds it. The example `drawing/drawing_save_load.py` works this way.
 
 To keep a drawing on the robot for a later run, save somewhere that lasts: the script's own folder is emptied at the start of each run, and `/tmp` when the Pi
@@ -180,7 +178,7 @@ python -m pip install <repository folder>/runner
 - Without installing anything, a copy of `runner_io.py` in the same folder as the script also works for the editor.
   Adding that copy in the app does no harm: the app always sends its own `runner_io` to the robot.
 
-## Local functions (app only)
+## Local functions
 
 `remote_execute()` calls a Python function that runs on the laptop, and waits for its result. The functions are
 in `.py` files added in the app with **Local** checked beside them. Those files stay on the laptop and are imported
@@ -218,7 +216,8 @@ seen = remote_execute("detect", shared_runner_file("/tmp/view.jpg"), 0.5)   # fo
 - The script waits for the answer, so stop the motors before a call that takes a while. Input typed in the app while
   a call is running is held until the answer arrives.
 - `print()` in a local function appears in the app's output, marked `[local]`.
-- The browser page cannot run local functions: there, `remote_execute()` raises `RemoteExecutionError` at once.
+- Local functions need a computer with Python: on Android, a run with Local files does not start, and the app says
+  why.
 
 Limits (app Settings): the time the local files may take to load, and the time one call may take. A call that runs
 over its limit stops the local functions for the rest of that run.
@@ -234,18 +233,18 @@ Each function prints one line to standard output in this form:
 For example, `say("Hello")` prints `@@runner say Hello`, `plot(distance=412)` prints
 `@@runner plot {"distance": 412.0}`, and `draw.marker(1, 2, name="robot")` prints
 `@@runner draw {"op": "marker", "points": [[1.0, 2.0]], "shape": "circle", "size": 10.0, "color": "black", "name": "robot"}`.
-The page recognizes
+The app recognizes
 these lines, hides them, and acts on them. Newlines in the value are replaced
 with spaces so each message stays on one line.
 
 `remote_execute()` prints a `call` line with its request as JSON, then reads its
-answer from standard input as a `reply` line. A long answer in SSH mode arrives
+answer from standard input as a `reply` line. A long answer arrives
 as a file next to the script (a `reply-file` line), because a terminal line has
 a length limit.
 
 Because the messages are ordinary output, a script that uses `say()`, `play()`,
-`show()`, `plot()`, and `draw` still runs anywhere. Run some other way (for example over SSH), the tagged lines
-simply appear as text.
+`show()`, `plot()`, and `draw` still runs anywhere. Run some other way (for example from a terminal), the tagged
+lines simply appear as text.
 
 ## Using the protocol without the module
 

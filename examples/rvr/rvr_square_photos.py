@@ -1,7 +1,7 @@
 """
 Drive a Sphero RVR in a square and take a photo at each corner.
 
-Each photo appears in the app (or browser page) as soon as it is taken, and the
+Each photo appears in the app as soon as it is taken, and the
 laptop says which corner it is. Pressing Stop (or Esc) stops the motors and
 closes the camera.
 

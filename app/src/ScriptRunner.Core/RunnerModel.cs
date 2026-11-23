@@ -1,25 +1,13 @@
 namespace ScriptRunner.Core;
 
-/// <summary>How the app reaches the Raspberry Pi.</summary>
-public enum ConnectionMode
-{
-    /// <summary>Through the runner server installed on the Pi (runner/script_runner.py).</summary>
-    Http,
-
-    /// <summary>Directly over SSH; nothing needs to be installed on the Pi.</summary>
-    Ssh,
-}
-
-/// <summary>Where and how to connect. The secret (PIN or password) is held only in memory.</summary>
+/// <summary>Where to connect, over SSH (nothing needs to be installed on the Pi). The password is held only in memory.</summary>
 public sealed record ConnectionSettings(
-    ConnectionMode Mode,
     string Host,
     int Port,
     string User,
     string Secret,
     int MaxSeconds = ConnectionSettings.DefaultMaxSeconds)
 {
-    public const int DefaultHttpPort = 8000;
     public const int DefaultSshPort = 22;
     public const int DefaultMaxSeconds = 300;
 
@@ -28,7 +16,7 @@ public sealed record ConnectionSettings(
     public const string DefaultUser = "pi";
 
     /// <summary>Never include the secret when settings are printed or logged.</summary>
-    public override string ToString() => $"{Mode} {User}@{Host}:{Port}";
+    public override string ToString() => $"SSH {User}@{Host}:{Port}";
 }
 
 /// <summary>A file to upload with the script: the script itself, or a sound or image it uses.</summary>
@@ -108,13 +96,14 @@ public sealed class RunnerException : Exception
     public RunnerException(string message, Exception inner) : base(message, inner) { }
 }
 
-/// <summary>Values shared with the Pi side (runner/script_runner.py and runner/runner_io.py).</summary>
+/// <summary>Values shared with the Pi side (runner/runner_io.py, which the app uploads with each run).</summary>
 public static class Protocol
 {
     /// <summary>Lines starting with this are runner_io messages (say, play, show, call, reply).</summary>
     public const string Tag = "@@runner ";
 
-    /// <summary>Held while any script runs, by the Pi server and by SSH mode, so only one runs at a time.</summary>
+    /// <summary>Held while a script from the app runs, so only one runs on a Pi at a time (two students' apps may
+    /// be connected to the same robot).</summary>
     public const string LockFile = "/tmp/pi-script-runner.lock";
 
     /// <summary>Exit code from flock when another script already holds the lock.</summary>

@@ -63,20 +63,11 @@ public sealed class LocalFunctionTests
         Assert.SkipWhen(string.IsNullOrEmpty(host) || string.IsNullOrEmpty(password),
             "SCRIPT_RUNNER_TEST_SSH_* environment variables are not set");
         Assert.SkipWhen(ConnectionTests.FindPython() is null, "python3 is not installed");
-        await RunAsync(0, host!, Environment.GetEnvironmentVariable("SCRIPT_RUNNER_TEST_SSH_PORT") ?? "22",
+        await RunAsync(host!, Environment.GetEnvironmentVariable("SCRIPT_RUNNER_TEST_SSH_PORT") ?? "22",
             Environment.GetEnvironmentVariable("SCRIPT_RUNNER_TEST_SSH_USER") ?? "pi", password!);
     }
 
-    [Fact]
-    public async Task HttpRemoteExecute()
-    {
-        string? python = ConnectionTests.FindPython();
-        Assert.SkipWhen(python is null, "python3 is not installed");
-        using var server = ConnectionTests.PiServer.Start(python!, ConnectionTests.TestPin);
-        await RunAsync(1, "127.0.0.1", server.Port.ToString(), "", ConnectionTests.TestPin);
-    }
-
-    private static async Task RunAsync(int modeIndex, string host, string port, string user, string secret)
+    private static async Task RunAsync(string host, string port, string user, string secret)
     {
         string settingsFolder = Directory.CreateTempSubdirectory("script-runner-local-test").FullName;
         ScriptRunner.App.App.Platform = new PlatformServices(new UiTests.RecordingSpeech(), new UiTests.SilentAudio(),
@@ -87,7 +78,6 @@ public sealed class LocalFunctionTests
         await ui.InvokeAsync(() =>
         {
             model = new MainViewModel(ScriptRunner.App.App.Platform);
-            model.SelectedModeIndex = modeIndex;
             model.Host = host;
             model.Port = port;
             model.User = user;
