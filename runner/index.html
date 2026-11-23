@@ -60,7 +60,8 @@
   #media figcaption { color: var(--muted); font-size: 13px; }
   #media .card { border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
   #media .card strong { display: block; word-break: break-all; }
-  #media .drawing svg { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); }
+  #media .drawing svg { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border);
+                        background: #fff; }  /* a transparent drawing is shown on white, as a browser shows the file */
   #media pre { margin: 6px 0 0; max-height: 240px; overflow: auto; font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace; }
   .hint { color: var(--muted); font-size: 13px; }
   .error { color: var(--stop); font-weight: 600; }
@@ -488,14 +489,14 @@
     objectUrls.forEach(function (url) { URL.revokeObjectURL(url); });
     objectUrls = [];
     mediaEl.textContent = ""; mediaEl.hidden = true; layoutEl.classList.remove("has-media");
-    drawing = { shapes: [], bounds: null, grid: null }; drawingFig = null;
+    drawing = { shapes: [], bounds: null, grid: null, background: "none" }; drawingFig = null;
   }
 
   // ---------- draw: the same picture as runner_io's save_svg() and the app ----------
   var MOST_SHAPES = 20000, MOST_POINTS = 5000, SVG_BOX = 760, MARGIN = 20, MOST_GRID_LINES = 200;
   var SHAPE_OPS = ["line", "polyline", "polygon", "rect", "circle", "text", "marker"];
   var MARKER_SHAPES = ["circle", "square", "triangle", "diamond", "x", "plus"];
-  var drawing = { shapes: [], bounds: null, grid: null }, drawingFig = null, drawingQueued = false;
+  var drawing = { shapes: [], bounds: null, grid: null, background: "none" }, drawingFig = null, drawingQueued = false;
 
   function finite(v) { return "number" === typeof v && isFinite(v); }
   function clamp(v, low, high) { return Math.max(low, Math.min(high, v)); }
@@ -523,6 +524,7 @@
       if (null != b && !(Array.isArray(b) && 4 === b.length && b.every(finite) && b[0] < b[1] && b[2] < b[3])) { return false; }
       if (null != g && !(finite(g) && 0 < g)) { return false; }
       drawing.bounds = null == b ? null : b.slice(); drawing.grid = null == g ? null : g;
+      drawing.background = checkColor(c.background, "none");
     } else if ("clear" === c.op) {
       drawing.shapes = [];
     } else if ("remove" === c.op) {
@@ -581,8 +583,10 @@
     function X(x) { return left0 + (x - v[0]) * k; }
     function Y(y) { return top0 + (v[3] - y) * k; }
     var out = ['<svg xmlns="http://www.w3.org/2000/svg" width="' + fmt(width) + '" height="' + fmt(height) +
-               '" viewBox="0 0 ' + fmt(width) + " " + fmt(height) + '">',
-               '<rect width="' + fmt(width) + '" height="' + fmt(height) + '" fill="white"/>'];
+               '" viewBox="0 0 ' + fmt(width) + " " + fmt(height) + '">'];
+    if ("none" !== drawing.background) {
+      out.push('<rect width="' + fmt(width) + '" height="' + fmt(height) + '" fill="' + drawing.background + '"/>');
+    }
     var g = drawing.grid;
     if (null != g) {
       var fx = Math.ceil(v[0] / g - 1e-9), lx = Math.floor(v[1] / g + 1e-9);

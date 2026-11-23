@@ -7,7 +7,8 @@ using ScriptRunner.Core;
 namespace ScriptRunner.App.Views;
 
 /// <summary>
-/// Draws the picture from runner_io's draw object on white, the same way as its saved SVG: the view fits the
+/// Draws the picture from runner_io's draw object the same way as its saved SVG, on white where the background is
+/// transparent (as a web browser shows the SVG file): the view fits the
 /// canvas() edges (or everything drawn) with the same scale both ways, and y points up.
 /// </summary>
 public sealed class DrawingView : Control
@@ -77,6 +78,10 @@ public sealed class DrawingView : Control
             return;
         }
         using var clip = context.PushClip(bounds);
+        if (BrushFor(drawing.Background) is { } background)
+        {
+            context.DrawRectangle(background, null, bounds);
+        }
         DrawingFrame frame = drawing.FrameFor(bounds.Width, bounds.Height, ScreenMargin);
         if (ScriptDrawing.GridLines(drawing.Grid, frame) is var (xs, ys))
         {

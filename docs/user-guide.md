@@ -84,7 +84,7 @@ cleans up when you press Stop (motors off, camera closed, sensors stopped).
 | `rvr/color_detection.py` | Reading the color under the robot and saying the strongest of red, green, and blue | Sphero RVR |
 | `rvr/ambient_light.py` | Reporting the light level until Stop, saying "Bright" or "Dark" when it changes | Sphero RVR |
 | `rvr/rvr_position.py` | The RVR's own position tracking: driving a square to target positions, printing where it thinks it is at each corner, and drawing its reported path | Sphero RVR, matplotlib |
-| `rvr/room_map.py` | Mapping a square around the robot with the distance sensor (type the size in meters when asked) and showing the room layout as a picture; also runs without a robot (`--simulate`) | Sphero RVR, Qwiic VL53L1X, numpy, matplotlib |
+| `rvr/room_map.py` | Mapping a square around the robot with the distance sensor (type the size in meters when asked), drawing the map live with `draw` and saving it as an SVG file; also runs without a robot (`--simulate`) | Sphero RVR, Qwiic VL53L1X, numpy |
 | `sensors/distance_sensor.py` | Measuring distance until Stop, graphing it with `plot()`, and warning out loud when something is close | SparkFun Qwiic VL53L1X |
 | `sensors/oled_display.py` | Showing two lines of text on the display, cleared when you press Stop | SparkFun Qwiic OLED (128 x 32) |
 | `sensors/camera_photo.py` | Taking a photo and showing it | Pi camera |

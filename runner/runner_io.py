@@ -228,19 +228,23 @@ class Drawing:
         self._shapes = []               # type: List[Dict[str, Any]]
         self._bounds = None             # type: Optional[Tuple[float, float, float, float]]
         self._grid = None               # type: Optional[float]
+        self._background = "none"
 
     # ---- Settings and erasing ----
 
     def canvas(self, xmin: Optional[float] = None, xmax: Optional[float] = None, ymin: Optional[float] = None,
-               ymax: Optional[float] = None, grid: Optional[float] = None) -> None:
+               ymax: Optional[float] = None, grid: Optional[float] = None, background: str = "none") -> None:
         """
-        Purpose: fix the part of the drawing that is shown, and choose grid lines
+        Purpose: fix the part of the drawing that is shown, and choose grid lines and a background color
         Inputs:  xmin, xmax, ymin, ymax - the edges shown, in the drawing's units; leave all four out to fit the
                  view to everything drawn (the default)
                  grid - the distance between grid lines, in the drawing's units, or None for no grid
+                 background - the color behind the whole picture, or "none" (the default) for a transparent
+                 background in the saved SVG file (the app and the browser page show it on white)
         Returns: nothing
 
-        Fixed edges keep a map from rescaling each time something new is drawn near its edge.
+        Fixed edges keep a map from rescaling each time something new is drawn near its edge. Each call sets all
+        of these again: what it leaves out goes back to its default.
         """
         edges = (xmin, xmax, ymin, ymax)
         if all(edge is None for edge in edges):
@@ -256,9 +260,12 @@ class Drawing:
             step = _number(grid, "grid")
             if step <= 0:
                 raise ValueError("grid must be more than 0")
+        color = _color(background, "background")
         self._bounds = bounds
         self._grid = step
-        self._send({"op": "canvas", "bounds": None if bounds is None else list(bounds), "grid": step})
+        self._background = color
+        self._send({"op": "canvas", "bounds": None if bounds is None else list(bounds), "grid": step,
+                    "background": color})
 
     def clear(self) -> None:
         """Erases everything drawn. The canvas() settings stay."""
@@ -357,7 +364,9 @@ class Drawing:
         f = _format
         out = ['<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s" viewBox="0 0 %s %s">'
                % (f(width), f(height), f(width), f(height)),
-               '<rect width="%s" height="%s" fill="white"/>' % (f(width), f(height))]
+]
+        if "none" != self._background:
+            out.append('<rect width="%s" height="%s" fill="%s"/>' % (f(width), f(height), self._background))
         out.extend(self._grid_svg(frame))
         for shape in self._shapes:
             out.extend(_shape_svg(shape, frame))

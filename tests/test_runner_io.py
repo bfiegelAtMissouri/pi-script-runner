@@ -41,7 +41,7 @@ class DrawTests(unittest.TestCase):
                                  self.draw.text(0, 0, "two\nlines", size=500),
                                  self.draw.remove("robot"),
                                  self.draw.clear()))
-        self.assertEqual({"op": "canvas", "bounds": [0.0, 2.0, 0.0, 1.0], "grid": 0.5}, sent[0])
+        self.assertEqual({"op": "canvas", "bounds": [0.0, 2.0, 0.0, 1.0], "grid": 0.5, "background": "none"}, sent[0])
         self.assertEqual({"op": "rect", "x": 0.5, "y": 0.75, "w": 0.5, "h": 0.25, "color": "gray", "fill": "#fc0",
                           "width": 2.0}, sent[1])                       # a negative width or height is turned around
         self.assertEqual({"op": "marker", "points": [[1.0, 2.0]], "shape": "circle", "size": 10.0, "color": "black",
@@ -83,6 +83,15 @@ class DrawTests(unittest.TestCase):
         circle = root.find(SVG + "circle")
         self.assertEqual(("400", "210", "95"), (circle.get("cx"), circle.get("cy"), circle.get("r")))  # y up
         self.assertEqual("A & <B>", root.findall(SVG + "text")[-1].text)
+
+    def test_background(self):
+        messages(lambda: self.draw.marker(0, 0))
+        self.assertNotIn("<rect", self.draw.svg(), "transparent unless a background is set")
+        messages(lambda: self.draw.canvas(background="Navy"))
+        root = ElementTree.fromstring(self.draw.svg())
+        self.assertEqual("navy", root[0].get("fill"), "the background is the first thing drawn")
+        with self.assertRaises(ValueError):
+            messages(lambda: self.draw.canvas(background="transparent-ish"))
 
     def test_fits_everything_drawn_without_canvas(self):
         messages(lambda: (self.draw.line(0, 0, 10, 0), self.draw.marker(5, 5)))

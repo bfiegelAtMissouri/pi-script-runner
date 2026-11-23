@@ -134,7 +134,7 @@ class BrowserTests(unittest.TestCase):
         pi_svg = os.path.join(self.work, "pi.svg")
         with open(script, "w") as handle:
             handle.write("from runner_io import draw\n"
-                         "draw.canvas(-0.25, 2.25, 0, 2, grid=0.5)\n"
+                         "draw.canvas(-0.25, 2.25, 0, 2, grid=0.5, background='ivory')\n"
                          "draw.rect(0, 0, 2, 1.5, color='gray', fill='whitesmoke', width=1)\n"
                          "draw.polygon([(0.2, 0.2), (0.6, 0.2), (0.4, 0.6)], fill='lightblue')\n"
                          "draw.circle(1.5, 1.2, 0.2, fill='#fc0', width=3.3)\n"

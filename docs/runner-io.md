@@ -63,7 +63,7 @@ both ways, so a square looks square.
 | `draw.text(x, y, text, color, size)` | Text whose line starts at `(x, y)` |
 | `draw.marker(x, y, shape, size, color)` | A marker centered on `(x, y)`: `"circle"`, `"square"`, `"triangle"`, `"diamond"`, `"x"`, or `"plus"` |
 | `draw.markers(points, shape, size, color)` | The same marker at many points, sent as one shape (faster than many `marker()` calls) |
-| `draw.canvas(xmin, xmax, ymin, ymax, grid)` | Fixes the part shown, and draws grid lines `grid` apart. Without it (or with `draw.canvas()`), the view fits everything drawn |
+| `draw.canvas(xmin, xmax, ymin, ymax, grid, background)` | Fixes the part shown, draws grid lines `grid` apart, and fills the picture with `background`. Without the edges (or with `draw.canvas()`), the view fits everything drawn. Each call sets all three again |
 | `draw.clear()` | Erases everything drawn (the `canvas()` settings stay) |
 | `draw.remove(name)` | Erases the shape drawn with that name |
 | `draw.save_svg(path)` | Writes the drawing as an SVG file on the Pi and returns `path`, so `show(draw.save_svg("/tmp/map.svg"))` sends it to the laptop too |
@@ -78,7 +78,9 @@ Sizes:
 - The defaults are 2-pixel lines, 10-pixel markers, and 14-pixel text.
 
 Colors are web color names (`"red"`, `"gray"`, `"steelblue"`, `"lightgreen"`, ...), `"#RRGGBB"`, or `"none"`. The
-default `color` is black and the default `fill` is none. A color that is not one of these raises `ValueError`, as
+default `color` is black and the default `fill` is none. The default `background` is none: the saved SVG file is
+transparent, and the app and the browser page show it on white, as a web browser shows the file. The grid is drawn
+over the background and under the shapes, so shapes filled with a color hide it. A color that is not one of these raises `ValueError`, as
 does a point that is not a pair of numbers.
 
 Fixed edges (`canvas(xmin, xmax, ymin, ymax)`) keep a map from rescaling every time something is drawn near its

@@ -57,8 +57,8 @@
     {
       "script": "rvr/room_map.py",
       "group": "RVR",
-      "shows": "Mapping a square around the robot with the distance sensor (type the size in meters when asked) and showing the room layout as a picture; also runs without a robot (--simulate)",
-      "needs": "Sphero RVR, Qwiic VL53L1X, numpy, matplotlib"
+      "shows": "Mapping a square around the robot with the distance sensor (type the size in meters when asked), drawing the map live with draw and saving it as an SVG file; also runs without a robot (--simulate)",
+      "needs": "Sphero RVR, Qwiic VL53L1X, numpy"
     },
     {
       "script": "sensors/distance_sensor.py",

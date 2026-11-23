@@ -18,7 +18,7 @@ public sealed class DrawingTests
         from runner_io import draw
         mode = sys.argv[3]
         if "fixed" == mode:
-            draw.canvas(-0.25, 2.25, 0, 2, grid=0.5)
+            draw.canvas(-0.25, 2.25, 0, 2, grid=0.5, background="ivory")
         draw.rect(0, 0, 2, 1.5, color="gray", fill="whitesmoke", width=1)
         draw.rect(1.8, 1.4, -0.4, -0.3, color="#336699")
         draw.polygon([(0.2, 0.2), (0.6, 0.2), (0.4, 0.6)], fill="lightblue")

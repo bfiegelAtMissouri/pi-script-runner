@@ -69,7 +69,7 @@ public abstract record DrawCommand
             }
             grid = value;
         }
-        return new SetCanvas(bounds, grid);
+        return new SetCanvas(bounds, grid, ScriptDrawing.CheckColor(String(root, "background"), "none"));
     }
 
     private static DrawShape? ReadShape(string op, JsonElement root)
@@ -119,8 +119,12 @@ public abstract record DrawCommand
         root.TryGetProperty(name, out JsonElement value) && JsonValueKind.String == value.ValueKind ? value.GetString() : null;
 }
 
-/// <summary>draw.canvas(): fixed edges (or null to fit everything drawn) and the grid step (or null).</summary>
-public sealed record SetCanvas((double XMin, double XMax, double YMin, double YMax)? Bounds, double? Grid) : DrawCommand;
+/// <summary>
+/// draw.canvas(): fixed edges (or null to fit everything drawn), the grid step (or null), and the background color
+/// ("none" for transparent).
+/// </summary>
+public sealed record SetCanvas((double XMin, double XMax, double YMin, double YMax)? Bounds, double? Grid,
+                               string Background = "none") : DrawCommand;
 
 /// <summary>draw.clear().</summary>
 public sealed record ClearShapes : DrawCommand;
@@ -190,8 +194,11 @@ public sealed class ScriptDrawing
 
     public double? Grid { get; private set; }
 
+    /// <summary>The color behind the picture, or "none" for transparent (the saved SVG has no background).</summary>
+    public string Background { get; private set; } = "none";
+
     /// <summary>True when nothing has been drawn and no canvas set.</summary>
-    public bool IsEmpty => 0 == shapes.Count && Bounds is null && Grid is null;
+    public bool IsEmpty => 0 == shapes.Count && Bounds is null && Grid is null && "none" == Background;
 
     /// <summary>Raised after each change.</summary>
     public event Action? Changed;
@@ -203,6 +210,7 @@ public sealed class ScriptDrawing
             case SetCanvas canvas:
                 Bounds = canvas.Bounds;
                 Grid = canvas.Grid;
+                Background = canvas.Background;
                 break;
             case ClearShapes:
                 shapes.Clear();
@@ -231,6 +239,7 @@ public sealed class ScriptDrawing
         shapes.Clear();
         Bounds = null;
         Grid = null;
+        Background = "none";
         Changed?.Invoke();
     }
 
@@ -326,7 +335,10 @@ public sealed class ScriptDrawing
         var svg = new StringBuilder();
         void Line(string text) => svg.Append(text).Append('\n');
         Line($"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{F(width)}\" height=\"{F(height)}\" viewBox=\"0 0 {F(width)} {F(height)}\">");
-        Line($"<rect width=\"{F(width)}\" height=\"{F(height)}\" fill=\"white\"/>");
+        if ("none" != Background)
+        {
+            Line($"<rect width=\"{F(width)}\" height=\"{F(height)}\" fill=\"{Background}\"/>");
+        }
         if (GridLines(Grid, frame) is var (xs, ys))
         {
             double left = frame.X(frame.XMin), right = frame.X(frame.XMax), top = frame.Y(frame.YMax), bottom = frame.Y(frame.YMin);

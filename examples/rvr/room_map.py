@@ -1,23 +1,27 @@
 """
-Room map: the robot maps a square area around where it starts and draws the layout as a picture.
+Room map: the robot maps a square area around where it starts and draws the layout as it goes.
 
 You choose the size of the square (in meters). The robot starts in its center, facing what will be the top of the
 map. At each stop it turns in place and measures the distance to whatever is in each direction with the distance
 sensor. It then drives to the next stop, if the way there is clear, and scans again. Anything outside the square is
 left off the map, so a large classroom is not mapped end to end.
 
-The picture, room_map.png, shows:
+The app draws the map as the robot works (with runner_io's draw), beside the output:
+  light blue  each measurement while the robot scans: the sensor's line of sight, ending in a red dot where it hit
   white       space the sensor saw through (free)
   black       where the sensor hit something (a wall, a chair leg, a box)
   gray        not seen
   blue        the robot's stops and its path
-It is shown in the app, and saved in /tmp with room_map_points.csv (every measured point, for your own analysis).
+  orange      the robot now, with a line showing which way it faces
+After each stop, the white, black, and gray map is redrawn from everything seen so far. At the end the map is saved
+on the robot as /tmp/room_map.svg (it opens in a web browser), with room_map_points.csv (every measured point, for
+your own analysis); "Save drawing..." in the app saves the same picture on your computer.
 
 Run it:
   From the app:  press Run and type the size when asked (Enter for the default), or give it in Settings,
                  "Arguments for room_map.py" (for example 2.0), so it is not asked each time.
-  Over SSH:      type room_map.py | ssh pi@<robot> "python3 - 2.0"        (2.0 = a 2 m square)
-  No robot:      python3 room_map.py 2.0 --simulate                       (a pretend room, on any computer)
+  No robot:      add --simulate (in Settings, "Arguments for room_map.py": 2.0 --simulate) for a pretend room.
+                 On a computer with runner_io installed (see docs/runner-io.md): python3 room_map.py 2.0 --simulate
 
 Before you start:
   - Clear the floor around the robot of things lower than the distance sensor; the sensor cannot see them and the
@@ -35,7 +39,7 @@ The robot's position comes from its wheel and motion sensors, which drift slowly
 accurate than one of a large square.
 
 Needs: Sphero RVR or RVR+ with its Raspberry Pi (Sphero RVR SDK), the SparkFun Qwiic VL53L1X distance sensor facing
-forward, numpy, and matplotlib. Works on the 32-bit and the 64-bit robots.
+forward, and numpy. Works on the 32-bit and the 64-bit robots.
 """
 import csv
 import math
@@ -44,10 +48,13 @@ import sys
 import threading
 import time
 
-import matplotlib
-matplotlib.use("Agg")                   # draws to a file; the robot has no screen
-import matplotlib.pyplot as plt         # noqa: E402
-import numpy as np                      # noqa: E402
+import numpy as np
+
+try:
+    from runner_io import draw
+except ImportError:
+    sys.exit("room_map.py draws with runner_io: run it from the app (or the runner), or install runner_io "
+             "(see docs/runner-io.md).")
 
 # ---- Map settings: change these to change the map ---------------------------------------------------------------
 DEFAULT_SIZE_M = 2.0            # side of the square to map, in meters, when none is given
@@ -75,8 +82,18 @@ SENSOR_OK = (None, 0)           # distance sensor_init() result on success (None
 BEAM_DEGREES = 27               # the sensor sees a cone this wide (the VL53L1X's full field of view)
 SECONDS_PER_DIRECTION = 0.7     # used only for the time estimate printed at the start
 
+# ---- Drawing ----------------------------------------------------------------------------------------------------
+UNSEEN_COLOR = "lightgray"
+FREE_COLOR = "white"
+SOMETHING_COLOR = "black"
+BEAM_COLOR = "lightskyblue"
+HIT_COLOR = "red"
+PATH_COLOR = "royalblue"
+ROBOT_COLOR = "darkorange"
+GRID_COLOR = "silver"
+
 POINTS_FILE = "/tmp/room_map_points.csv"
-PICTURE_FILE = "/tmp/room_map.png"
+MAP_FILE = "/tmp/room_map.svg"
 
 
 class Stalled(Exception):
@@ -255,9 +272,11 @@ class SimulatedRobot:
         return self.x, self.y, self.heading
 
     def turn_to(self, heading):
+        time.sleep(0.05)                        # slow enough to watch the map being drawn
         self.heading = (heading + self.random.normal(0, 1.5)) % 360
 
     def drive_to(self, x, y):
+        time.sleep(0.5)
         self.x, self.y = x + self.random.normal(0, 0.02), y + self.random.normal(0, 0.02)
 
     def distance_mm(self):
@@ -320,8 +339,11 @@ def stations_for(size):
 # =================================================================================================================
 # Mapping
 # =================================================================================================================
-def scan(robot, readings):
-    """Turns all the way around, measuring in each direction. Each reading is (sensor x, sensor y, heading, mm)."""
+def scan(robot, readings, size):
+    """
+    Turns all the way around, measuring in each direction, and draws each measurement. Each reading is
+    (sensor x, sensor y, heading, mm).
+    """
     for heading in range(0, 360, SCAN_STEP_DEGREES):
         robot.turn_to(heading)
         values = [robot.distance_mm() for _ in range(READINGS_PER_DIRECTION)]
@@ -332,6 +354,8 @@ def scan(robot, readings):
         # Most readings must agree that something is there; otherwise it counts as nothing seen.
         mm = statistics.median(seen) if len(seen) * 2 > len(values) else None
         readings.append((sensor_x, sensor_y, actual, mm))
+        draw_reading(readings[-1], size)
+        draw_robot(robot)
 
 
 def way_is_clear(robot, to_x, to_y):
@@ -399,10 +423,13 @@ def save_points(readings):
                                  "%.3f" % hit_x, "%.3f" % hit_y])
 
 
-def draw(readings, visited, size, stalled_at=None):
+def map_picture(readings, visited, size):
+    """
+    The map as a grid of cells (row 0 at the top): 0.5 = not seen, 1 = free, 0 = something there. A cell counts as
+    "something there" when it was hit at least half as often as the beam saw through it (the wide beam sees through
+    many cells near a hit).
+    """
     passes, hits = build_map(readings, size)
-    # 0.5 = not seen (gray), 1 = free (white), 0 = something there (black). A cell counts as "something there" when
-    # it was hit at least half as often as the beam saw through it (the wide beam sees through many cells near a hit).
     picture = np.full(passes.shape, 0.5)
     picture[0 < passes] = 1.0
     picture[(0 < hits) & (passes <= 2 * hits)] = 0.0
@@ -411,30 +438,107 @@ def draw(readings, visited, size, stalled_at=None):
     centers_y = size / 2 - (rows + 0.5) * CELL_M
     for x, y in visited:                                    # where the robot stood is free too
         picture[np.hypot(centers_x - x, centers_y - y) <= ROBOT_RADIUS_M] = 1.0
+    return picture
 
+
+def hit_point(reading):
+    """Where a reading hit something, or None when it saw nothing in range."""
+    x, y, heading, mm = reading
+    if mm is None:
+        return None
+    return x + mm / 1000 * math.sin(math.radians(heading)), y + mm / 1000 * math.cos(math.radians(heading))
+
+
+def inside(point, size):
+    return abs(point[0]) <= size / 2 and abs(point[1]) <= size / 2
+
+
+def start_drawing(size):
+    """The square to map, gray (not seen yet)."""
     half = size / 2
-    figure, axes = plt.subplots(figsize=(6.5, 6.5))
-    axes.imshow(picture, cmap="gray", vmin=0, vmax=1, extent=(-half, half, -half, half), interpolation="nearest")
-    hit_x = [x + mm / 1000 * math.sin(math.radians(h)) for x, y, h, mm in readings if mm is not None]
-    hit_y = [y + mm / 1000 * math.cos(math.radians(h)) for x, y, h, mm in readings if mm is not None]
-    axes.scatter(hit_x, hit_y, s=6, color="tab:red", label="measured points")
-    path_x, path_y = zip(*visited)
-    axes.plot(path_x, path_y, "-o", color="tab:blue", markersize=5, label="robot stops and path")
+    draw.canvas(-half, half, -half, half)
+    draw.rect(-half, -half, size, size, color="none", fill=UNSEEN_COLOR)
+
+
+def draw_grid(size):
+    """
+    Grid lines with their distances from the start, in meters. They are drawn here, over the map, because the
+    canvas() grid would be hidden under the map's white, black, and gray.
+    """
+    half = size / 2
+    step = 0.5 if size <= 3 else 1.0
+    lines = [k * step for k in range(int(math.ceil(-half / step)), int(math.floor(half / step)) + 1)]
+    for value in lines:
+        draw.line(value, -half, value, half, color=GRID_COLOR, width=1)
+        draw.line(-half, value, half, value, color=GRID_COLOR, width=1)
+    for value in lines:
+        draw.text(value + 0.02, -half + 0.03, "%g" % value, size=10, color="gray")
+        if value != lines[0]:
+            draw.text(-half + 0.02, value + 0.03, "%g" % value, size=10, color="gray")
+
+
+def draw_reading(reading, size):
+    """One measurement: the sensor's line of sight, and a dot where it hit something. Kept inside the square."""
+    x, y, heading, mm = reading
+    reach = (mm if mm is not None else LONGEST_MM) / 1000
+    dx, dy = math.sin(math.radians(heading)), math.cos(math.radians(heading))
+    half = size / 2
+    limits = [reach]                                        # stop the line at the square's edge
+    for d, position in ((dx, x), (dy, y)):
+        if 1e-9 < abs(d):
+            limits.append(((half if 0 < d else -half) - position) / d)
+    length = max(0.0, min(limits))
+    draw.line(x, y, x + dx * length, y + dy * length, color=BEAM_COLOR, width=1)
+    point = hit_point(reading)
+    if point is not None and inside(point, size):
+        draw.marker(point[0], point[1], shape="circle", size=4, color=HIT_COLOR)
+
+
+def draw_robot(robot):
+    """The robot where it is now, with a line toward where it faces."""
+    x, y, heading = robot.pose()
+    draw.line(x, y, x + 0.2 * math.sin(math.radians(heading)), y + 0.2 * math.cos(math.radians(heading)),
+              color=ROBOT_COLOR, width=3, name="robot heading")
+    draw.marker(x, y, shape="circle", size=12, color=ROBOT_COLOR, name="robot")
+
+
+def draw_map(readings, visited, size, robot=None, stalled_at=None):
+    """Redraws the whole map from everything measured so far: free, something there, not seen, and the path."""
+    draw.clear()
+    start_drawing(size)
+    picture = map_picture(readings, visited, size)
+    half = size / 2
+    # Each row's runs of free cells and of "something there" cells, as rectangles. Each is outlined in its own
+    # color so that no thin seams show between neighboring rows.
+    for row in range(picture.shape[0]):
+        y = half - (row + 1) * CELL_M
+        column = 0
+        while column < picture.shape[1]:
+            value = picture[row, column]
+            end = column
+            while end < picture.shape[1] and picture[row, end] == value:
+                end += 1
+            if 0.5 != value:
+                color = FREE_COLOR if 1.0 == value else SOMETHING_COLOR
+                draw.rect(-half + column * CELL_M, y, (end - column) * CELL_M, CELL_M, color=color, fill=color,
+                          width=1)
+            column = end
+    draw_grid(size)
+    hits = [point for point in map(hit_point, readings) if point is not None and inside(point, size)]
+    if hits:
+        draw.markers(hits, shape="circle", size=4, color=HIT_COLOR)
+    if 1 < len(visited):
+        draw.polyline(visited, color=PATH_COLOR, width=2)
+    draw.markers(visited, shape="circle", size=8, color=PATH_COLOR)
     if stalled_at is not None:
-        axes.plot([path_x[-1], stalled_at[0]], [path_y[-1], stalled_at[1]], ":", color="tab:blue")
-        axes.plot(*stalled_at, "x", color="red", markersize=12, markeredgewidth=3, label="ran into something")
-    axes.annotate("start", (0, 0), textcoords="offset points", xytext=(6, -12), color="tab:blue")
-    axes.annotate("", xy=(0, 0.25), xytext=(0, 0), arrowprops={"arrowstyle": "->", "color": "tab:blue"})
-    axes.set_xlim(-half, half)
-    axes.set_ylim(-half, half)
-    axes.set_aspect("equal")
-    axes.set_xlabel("meters (right of the start)")
-    axes.set_ylabel("meters (ahead of the start)")
-    axes.set_title("Room map, %.1f m square, %d readings" % (size, len(readings)))
-    axes.legend(loc="upper right", fontsize=8, framealpha=0.9)
-    figure.tight_layout()
-    figure.savefig(PICTURE_FILE, dpi=120)
-    plt.close(figure)
+        draw.line(visited[-1][0], visited[-1][1], stalled_at[0], stalled_at[1], color=PATH_COLOR, width=1)
+        draw.marker(stalled_at[0], stalled_at[1], shape="x", size=18, color="red")
+        draw.text(stalled_at[0] + 0.06, stalled_at[1] + 0.06, "ran into something", size=12, color="red")
+    draw.line(0, 0, 0, 0.25, color=PATH_COLOR, width=2)    # the start, and which way the robot first faced
+    draw.marker(0, 0.25, shape="triangle", size=10, color=PATH_COLOR)
+    draw.text(0.05, -0.1, "start", size=12, color=PATH_COLOR)
+    if robot is not None:
+        draw_robot(robot)
 
 
 def ask_size():
@@ -469,8 +573,11 @@ def main():
     visited = []
     stalled_at = None
     robot = None
+    start_drawing(size)
+    draw_grid(size)
     try:
         robot = SimulatedRobot() if "--simulate" in sys.argv else RealRobot()
+        draw_robot(robot)
         # A stop that is blocked from where the robot is gets one more try at the end, from another stop.
         to_visit = [(number, x, y, True) for number, (x, y) in enumerate(stations, 1)]
         while to_visit:
@@ -484,14 +591,17 @@ def main():
                         print("Stop %d at (%.2f, %.2f): still blocked; skipped." % (number, x, y))
                     continue
                 robot.drive_to(x, y)
+                draw_robot(robot)
             here_x, here_y, _ = robot.pose()
             visited.append((here_x, here_y))
             print("Stop %d of %d at (%.2f, %.2f): scanning..." % (number, len(stations), here_x, here_y))
-            scan(robot, readings)
+            scan(robot, readings, size)
+            draw_map(readings, visited, size, robot)
         if 1 < len(visited) and way_is_clear(robot, 0, 0):
             print("Returning to the start.")
             robot.drive_to(0, 0)
             visited.append(robot.pose()[:2])
+            draw_robot(robot)
     except Stalled:
         stalled_at = robot.pose()[:2]
         print("The robot ran into something at (%.2f, %.2f) and a motor stalled; mapping stopped there."
@@ -507,15 +617,10 @@ def main():
         print("No readings, so there is no map.")
         return
     save_points(readings)
-    draw(readings, visited or [(0.0, 0.0)], size, stalled_at)
+    draw_map(readings, visited or [(0.0, 0.0)], size, stalled_at=stalled_at)
+    draw.save_svg(MAP_FILE)
     seen = sum(1 for reading in readings if reading[3] is not None)
-    print("%d readings, %d of them hit something. Saved %s and %s." % (len(readings), seen, PICTURE_FILE,
-                                                                      POINTS_FILE))
-    try:
-        from runner_io import show              # shows the map in the app when run from there
-        show(PICTURE_FILE)
-    except ImportError:
-        pass
+    print("%d readings, %d of them hit something. Saved %s and %s." % (len(readings), seen, MAP_FILE, POINTS_FILE))
 
 
 if __name__ == "__main__":
