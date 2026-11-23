@@ -1,11 +1,11 @@
 # The `runner_io` helper module
 
-`runner_io` lets a script send speech, sounds, and images to the browser page
+`runner_io` lets a script send speech, sounds, images, graphs, and drawings to the browser page
 or app that started it. The runner server and the app's SSH mode both put it on
 the script's import path automatically.
 
 ```python
-from runner_io import say, play, show, plot
+from runner_io import say, play, show, plot, draw
 ```
 
 ## Functions
@@ -16,6 +16,7 @@ from runner_io import say, play, show, plot
 | `play(filename)` | Plays a sound file (`.wav`, `.mp3`, `.ogg`) |
 | `show(filename)` | Sends any file to the page and keeps it there with a Save link: images are displayed, text files (`.csv`, `.txt`, `.json`, ...) show their first lines, and other files show their name and size |
 | `plot(name=value, ...)` | Adds numbers to a live graph, one line per name (app only; the browser page shows the numbers as text). `plot(value)` with no name plots it as "value" |
+| `draw.line(...)`, `draw.marker(...)`, ... | Draws a picture, such as a map, shown as it is drawn and saved as an SVG file. See [Drawing](#drawing) |
 
 `plot()` is meant for a loop, one call per reading:
 
@@ -28,6 +29,63 @@ while True:
 The graph's horizontal axis is the seconds since the first `plot()` of the run, and its vertical scale fits the
 values. **Save data…** beside the graph saves every value as a CSV file, one row per call and one column per name.
 Values that are not numbers are skipped.
+
+## Drawing
+
+`draw` makes a picture of lines, shapes, markers, and text, for example a map of a room. The app shows it beside the
+output as it is drawn, and **Save drawing…** saves it as an SVG file (it opens in a web browser and in most drawing
+programs). The browser page shows it too, with a Save link. `draw.save_svg(path)` writes the same file on the Pi, so a
+script run without the app still has its picture.
+
+```python
+from runner_io import draw
+
+draw.canvas(0, 3, 0, 2, grid=0.5)               # show x from 0 to 3 and y from 0 to 2, grid lines every 0.5
+draw.rect(0, 0, 3, 2, color="dimgray", width=3)  # the walls
+draw.circle(0.8, 1.2, 0.15, fill="lightgreen")
+draw.marker(2.9, 0.6, shape="x", color="crimson")
+while driving:
+    draw.polyline(path, color="royalblue", name="path")
+    draw.marker(x, y, shape="triangle", color="red", name="robot")
+draw.save_svg("/tmp/map.svg")
+```
+
+The drawing uses the script's own units (for example meters), with **x to the right and y up**, and the same scale
+both ways, so a square looks square.
+
+| Call | Draws |
+| :--- | :--- |
+| `draw.line(x1, y1, x2, y2, color, width)` | A straight line |
+| `draw.polyline(points, color, width)` | Lines joining the points in order, for example a path: `[(0, 0), (1, 0), (1, 1)]` |
+| `draw.polygon(points, color, fill, width)` | A closed shape through the points |
+| `draw.rect(x, y, w, h, color, fill, width)` | A rectangle `w` wide and `h` tall whose lower-left corner is `(x, y)` |
+| `draw.circle(x, y, r, color, fill, width)` | A circle with radius `r` |
+| `draw.text(x, y, text, color, size)` | Text whose line starts at `(x, y)` |
+| `draw.marker(x, y, shape, size, color)` | A marker centered on `(x, y)`: `"circle"`, `"square"`, `"triangle"`, `"diamond"`, `"x"`, or `"plus"` |
+| `draw.markers(points, shape, size, color)` | The same marker at many points, sent as one shape (faster than many `marker()` calls) |
+| `draw.canvas(xmin, xmax, ymin, ymax, grid)` | Fixes the part shown, and draws grid lines `grid` apart. Without it (or with `draw.canvas()`), the view fits everything drawn |
+| `draw.clear()` | Erases everything drawn (the `canvas()` settings stay) |
+| `draw.remove(name)` | Erases the shape drawn with that name |
+| `draw.save_svg(path)` | Writes the drawing as an SVG file on the Pi and returns `path`, so `show(draw.save_svg("/tmp/map.svg"))` sends it to the laptop too |
+
+Every shape also takes `name`. A shape drawn with a name replaces the earlier shape with that name and is drawn on
+top, which moves something, such as the robot, without leaving copies behind.
+
+Sizes:
+
+- Lengths of lines, rectangles, and circles are in the drawing's units, so a 0.5 m table stays 0.5 m.
+- Line `width`, marker `size`, and text `size` are in **pixels**, so they stay readable however large the drawing is.
+- The defaults are 2-pixel lines, 10-pixel markers, and 14-pixel text.
+
+Colors are web color names (`"red"`, `"gray"`, `"steelblue"`, `"lightgreen"`, ...), `"#RRGGBB"`, or `"none"`. The
+default `color` is black and the default `fill` is none. A color that is not one of these raises `ValueError`, as
+does a point that is not a pair of numbers.
+
+Fixed edges (`canvas(xmin, xmax, ymin, ymax)`) keep a map from rescaling every time something is drawn near its
+edge; the view does not grow to show shapes outside them. A run keeps up to 20000 shapes (the oldest are dropped after that), and one
+shape can have up to 5000 points. A shape drawn again with the same `name` does not add to the count.
+
+The app clears the drawing at the start of each run. **Save run…** includes it as `drawing.svg`.
 
 `filename` is either relative to the script's folder on the Pi (for example
 `photo.jpg`) or an absolute path in `/tmp` (for example `/tmp/photo.jpg`).
@@ -120,8 +178,10 @@ Each function prints one line to standard output in this form:
 @@runner <kind> <value>
 ```
 
-For example, `say("Hello")` prints `@@runner say Hello`, and `plot(distance=412)` prints
-`@@runner plot {"distance": 412.0}`. The page recognizes
+For example, `say("Hello")` prints `@@runner say Hello`, `plot(distance=412)` prints
+`@@runner plot {"distance": 412.0}`, and `draw.marker(1, 2, name="robot")` prints
+`@@runner draw {"op": "marker", "points": [[1.0, 2.0]], "shape": "circle", "size": 10.0, "color": "black", "name": "robot"}`.
+The page recognizes
 these lines, hides them, and acts on them. Newlines in the value are replaced
 with spaces so each message stays on one line.
 
@@ -131,7 +191,7 @@ as a file next to the script (a `reply-file` line), because a terminal line has
 a length limit.
 
 Because the messages are ordinary output, a script that uses `say()`, `play()`,
-`show()`, and `plot()` still runs anywhere. Run some other way (for example over SSH), the tagged lines
+`show()`, `plot()`, and `draw` still runs anywhere. Run some other way (for example over SSH), the tagged lines
 simply appear as text.
 
 ## Using the protocol without the module

@@ -33,29 +33,36 @@ public partial class MainView : UserControl
                     {
                         FitFileList();
                     }
-                    else if (nameof(MainViewModel.HasPlot) == e.PropertyName)
+                    else if (nameof(MainViewModel.HasPlot) == e.PropertyName ||
+                             nameof(MainViewModel.HasDrawing) == e.PropertyName)
                     {
-                        ShowPlotRows(model.HasPlot);
+                        ShowGraphs(model.HasPlot, model.HasDrawing);
                     }
                 };
                 FitFileList();
-                ShowPlotRows(model.HasPlot);
+                ShowGraphs(model.HasPlot, model.HasDrawing);
             }
         };
     }
 
     /// <summary>
-    /// Gives the graph two fifths of the height below the controls and the output the rest, or the output all of it
-    /// when there is no graph. The splitter between them changes the share.
+    /// Gives the graph two fifths of the height below the controls (the drawing, which needs more, three fifths) and
+    /// the output the rest, or the output all of it when there is neither. The graph and the drawing share the width
+    /// when there are both. The splitters change the shares.
     /// </summary>
-    private void ShowPlotRows(bool hasPlot)
+    private void ShowGraphs(bool hasPlot, bool hasDrawing)
     {
+        bool any = hasPlot || hasDrawing;
         RowDefinitions rows = OutputArea.RowDefinitions;
-        rows[0].Height = hasPlot ? new GridLength(2, GridUnitType.Star) : new GridLength(0);
-        rows[0].MinHeight = hasPlot ? 100 : 0;
-        rows[1].Height = hasPlot ? new GridLength(8) : new GridLength(0);
+        rows[0].Height = any ? new GridLength(hasDrawing ? 4.5 : 2, GridUnitType.Star) : new GridLength(0);
+        rows[0].MinHeight = any ? 100 : 0;
+        rows[1].Height = any ? new GridLength(8) : new GridLength(0);
         rows[2].Height = new GridLength(3, GridUnitType.Star);
         rows[2].MinHeight = 80;
+        ColumnDefinitions columns = GraphsArea.ColumnDefinitions;
+        columns[0].Width = hasPlot ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        columns[1].Width = hasPlot && hasDrawing ? new GridLength(8) : new GridLength(0);
+        columns[2].Width = hasDrawing ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
     }
 
     /// <summary>Applies the chosen file list height, kept to two thirds of the screen when the screen is smaller.</summary>
@@ -249,9 +256,38 @@ public partial class MainView : UserControl
         }
     }
 
+    /// <summary>Saves the drawing as an SVG file.</summary>
+    private async void OnSaveDrawing(object? sender, RoutedEventArgs e)
+    {
+        TopLevel? top = TopLevel.GetTopLevel(this);
+        if (top is null || !ViewModel.HasDrawing)
+        {
+            return;
+        }
+        try
+        {
+            IStorageFile? file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save the drawing",
+                SuggestedFileName = Path.GetFileNameWithoutExtension(ViewModel.SelectedScript ?? "drawing") + ".svg",
+                DefaultExtension = "svg",
+                ShowOverwritePrompt = true,
+            });
+            if (file is not null)
+            {
+                await WriteAsync(file, Encoding.UTF8.GetBytes(ViewModel.Drawing.ToSvg()));
+                ViewModel.StatusText = "Saved " + file.Name;
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            ViewModel.ErrorText = "Could not save the drawing: " + error.Message;
+        }
+    }
+
     /// <summary>
     /// Saves the latest run in a new folder inside a chosen one: output.txt (the output with the time of each line),
-    /// the files sent with it, plot.csv when the script plotted, and the files it showed.
+    /// the files sent with it, plot.csv when the script plotted, drawing.svg when it drew, and the files it showed.
     /// </summary>
     private async void OnSaveRun(object? sender, RoutedEventArgs e)
     {
@@ -276,6 +312,10 @@ public partial class MainView : UserControl
             if (!ViewModel.Plot.IsEmpty)
             {
                 await SaveNewAsync(folder, "plot.csv", Encoding.UTF8.GetBytes(ViewModel.Plot.ToCsv()));
+            }
+            if (ViewModel.HasDrawing)
+            {
+                await SaveNewAsync(folder, "drawing.svg", Encoding.UTF8.GetBytes(ViewModel.Drawing.ToSvg()));
             }
             if (0 < ViewModel.RecordFiles.Count)
             {

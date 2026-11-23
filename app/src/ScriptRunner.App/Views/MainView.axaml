@@ -282,9 +282,11 @@
       </TextBox>
     </DockPanel>
 
-    <!-- The live graph of plot() values above the output, with a splitter between them to share the height. -->
+    <!-- The live graph of plot() values and the drawing (side by side when there are both) above the output, with
+         splitters to share the space. -->
     <Grid Name="OutputArea" RowDefinitions="0,0,*">
-    <Border Grid.Row="0" IsVisible="{Binding HasPlot}" BorderBrush="Gray" BorderThickness="1" CornerRadius="6" Padding="6">
+    <Grid Name="GraphsArea" Grid.Row="0" ColumnDefinitions="*,0,0">
+    <Border Grid.Column="0" IsVisible="{Binding HasPlot}" BorderBrush="Gray" BorderThickness="1" CornerRadius="6" Padding="6">
       <DockPanel>
         <StackPanel DockPanel.Dock="Right" Spacing="6" VerticalAlignment="Top" Margin="8,0,0,0">
           <Button Content="Save data…" Click="OnSavePlot" ToolTip.Tip="Save the plotted numbers as a CSV file (opens in a spreadsheet)" />
@@ -293,8 +295,21 @@
         <local:PlotView Data="{Binding Plot}" MinHeight="60" AutomationProperties.Name="Plot of plot() values" />
       </DockPanel>
     </Border>
-    <GridSplitter Grid.Row="1" IsVisible="{Binding HasPlot}" ResizeDirection="Rows" Background="Transparent"
-                  ToolTip.Tip="Drag to share the height between the graph and the output" />
+    <GridSplitter Grid.Column="1" IsVisible="{Binding HasPlot}" ResizeDirection="Columns" Background="Transparent"
+                  ToolTip.Tip="Drag to share the width between the graph and the drawing" />
+    <Border Grid.Column="2" IsVisible="{Binding HasDrawing}" BorderBrush="Gray" BorderThickness="1" CornerRadius="6" Padding="6">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Spacing="6" VerticalAlignment="Top" Margin="8,0,0,0">
+          <Button Content="Save drawing…" Click="OnSaveDrawing" ToolTip.Tip="Save the drawing as an SVG file (opens in a web browser)" />
+          <Button Content="Clear" Command="{Binding ClearDrawingCommand}" />
+        </StackPanel>
+        <local:DrawingView Name="DrawingCanvas" Drawing="{Binding Drawing}" MinHeight="60" MinWidth="60"
+                           AutomationProperties.Name="Drawing from draw" />
+      </DockPanel>
+    </Border>
+    </Grid>
+    <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="Transparent"
+                  ToolTip.Tip="Drag to share the height between the graph or drawing and the output" />
 
     <!-- Output and images -->
     <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ClipToBounds="True">

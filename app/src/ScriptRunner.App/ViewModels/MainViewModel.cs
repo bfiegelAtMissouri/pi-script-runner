@@ -328,6 +328,7 @@ public sealed partial class MainViewModel : ViewModelBase
             ClearOutput();
             ClearErrorReport();
             ClearPlot();
+            ClearDrawing();
             StartRecord(wanted, SelectedScript!, arguments);
             if (0 < reloaded.Count)
             {
@@ -652,6 +653,9 @@ public sealed partial class MainViewModel : ViewModelBase
                     break;
                 case PlotItem plot:
                     AddPlotPoint(plot.Values);
+                    break;
+                case DrawItem draw:
+                    ApplyDraw(draw.Command);
                     break;
                 case CallItem call:
                     if (connection is not null)

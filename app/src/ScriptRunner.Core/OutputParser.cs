@@ -21,6 +21,9 @@ public sealed record ShowItem(string FileName) : OutputItem;
 /// <summary>runner_io.plot(): named numbers to add to the live graph, in the order the script gave them.</summary>
 public sealed record PlotItem(IReadOnlyList<KeyValuePair<string, double>> Values) : OutputItem;
 
+/// <summary>runner_io's draw object: a change to the drawing.</summary>
+public sealed record DrawItem(DrawCommand Command) : OutputItem;
+
 /// <summary>runner_io.remote_execute(): a request to call a local function, as JSON.</summary>
 public sealed record CallItem(string RequestJson) : OutputItem;
 
@@ -158,6 +161,9 @@ public sealed class OutputParser
                 break;
             case "plot" when ReadPlot(value) is { } plot:
                 items.Add(plot);
+                break;
+            case "draw" when DrawCommand.Parse(value) is { } command:
+                items.Add(new DrawItem(command));
                 break;
             case "reply":
             case "reply-file":

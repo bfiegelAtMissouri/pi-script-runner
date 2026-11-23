@@ -128,6 +128,49 @@ class BrowserTests(unittest.TestCase):
             self.assertEqual([], errors)
             browser.close()
 
+    def test_draw(self):
+        """draw: the page shows the drawing as it is made, and saves the same SVG as save_svg() writes on the Pi."""
+        script = os.path.join(self.work, "drawing.py")
+        pi_svg = os.path.join(self.work, "pi.svg")
+        with open(script, "w") as handle:
+            handle.write("from runner_io import draw\n"
+                         "draw.canvas(-0.25, 2.25, 0, 2, grid=0.5)\n"
+                         "draw.rect(0, 0, 2, 1.5, color='gray', fill='whitesmoke', width=1)\n"
+                         "draw.polygon([(0.2, 0.2), (0.6, 0.2), (0.4, 0.6)], fill='lightblue')\n"
+                         "draw.circle(1.5, 1.2, 0.2, fill='#fc0', width=3.3)\n"
+                         "draw.line(0, 0, 2, 1.5, color='green', width=1)\n"
+                         "draw.polyline([(0, 1), (1, 1.25), (2, 1)])\n"
+                         "draw.text(0.1, 1.4, 'Room <A> & \"B\"', size=12.5)\n"
+                         "for i, s in enumerate(['circle', 'square', 'triangle', 'diamond', 'x', 'plus']):\n"
+                         "    draw.marker(0.2 + 0.3 * i, 0.9, shape=s, color='red', size=7 + i)\n"
+                         "draw.marker(1, 1, shape='triangle', name='robot')\n"
+                         "draw.marker(1.25, 1.05, shape='triangle', name='robot')\n"
+                         "draw.save_svg(%r)\n"
+                         "print('drawn')\n" % pi_svg)
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            page = browser.new_page()
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(self.base + "/")
+            page.fill("#pin", PIN)
+            page.set_input_files("#picker", [script])
+            page.click("#runBtn")
+            page.wait_for_function(
+                "document.getElementById('output').textContent.includes('Finished')", timeout=5000)
+            page.wait_for_selector("#media .drawing svg", timeout=5000)
+            self.assertNotIn("draw", page.inner_text("#output").replace("drawn", ""), "draw lines are hidden")
+            self.assertEqual(1, page.eval_on_selector_all("#media .drawing svg polygon[fill='black']", "e => e.length"),
+                             "the named marker replaced the first one")
+            with page.expect_download() as download_info:
+                page.click("#media .drawing a[download]")
+            saved = os.path.join(self.work, "saved.svg")
+            download_info.value.save_as(saved)
+            with open(saved) as handle, open(pi_svg) as pi:
+                self.assertEqual(pi.read(), handle.read())
+            self.assertEqual([], errors)
+            browser.close()
+
     def test_remote_execute_needs_the_app(self):
         """In the browser page, remote_execute() fails at once with a clear message instead of waiting forever."""
         script = os.path.join(self.work, "remote.py")

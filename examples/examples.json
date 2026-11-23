@@ -19,6 +19,12 @@
       ]
     },
     {
+      "script": "drawing/drawing_demo.py",
+      "group": "Getting started",
+      "shows": "Drawing a map with draw: shapes, markers, a moving robot, and a saved SVG file",
+      "needs": "Nothing"
+    },
+    {
       "script": "rvr/rvr_square.py",
       "group": "RVR",
       "shows": "Driving a square with spoken updates and a safe stop",

@@ -9,18 +9,22 @@ using Xunit;
 namespace ScriptRunner.Tests;
 
 /// <summary>
-/// Reload, plot(), the error report, the run record, and the robot check, through the real screen against the SSH
+/// Reload, plot(), draw, the error report, the run record, and the robot check, through the real screen against the SSH
 /// test server (see <see cref="ConnectionTests"/>). Saves a picture as ui-student-help.png in the test output folder.
 /// </summary>
 public sealed class StudentHelpUiTests
 {
     private const string Main = """
         import time
-        from runner_io import plot
+        from runner_io import plot, draw
         import helper
+        draw.canvas(0, 2, 0, 1.5, grid=0.5)
+        draw.rect(0.2, 0.2, 0.6, 0.4, color="gray", fill="lightblue")
         for i in range(5):
             plot(distance=100 + 10 * i, light=50 - i)
+            draw.marker(0.3 * i + 0.2, 1.0, shape="triangle", color="red", size=14, name="robot")
             time.sleep(0.1)
+        draw.text(1.0, 0.3, "done", size=16)
         print("version", helper.VERSION)
         print(1 / 0 if 2 == helper.VERSION else "ok")
         """;
@@ -74,6 +78,9 @@ public sealed class StudentHelpUiTests
             Assert.True(viewModel.HasPlot);
             Assert.Equal(5, viewModel.Plot.Rows.Count);
             Assert.Equal(new[] { "distance", "light" }, viewModel.Plot.Names);
+            Assert.True(viewModel.HasDrawing);
+            Assert.Equal(new[] { "rect", "marker", "text" }, viewModel.Drawing.Shapes.Select(shape => shape.Op));
+            Assert.Equal((1.4, 1.0), viewModel.Drawing.Shapes[1].Points[0]);
             Assert.False(viewModel.HasErrorReport);
         }, DispatcherPriority.Normal, cancel);
 
@@ -86,13 +93,13 @@ public sealed class StudentHelpUiTests
         {
             Assert.Contains("[Reloaded the changed files: helper.py]", viewModel.OutputText, StringComparison.Ordinal);
             Assert.Contains("version 2", viewModel.OutputText, StringComparison.Ordinal);
-            Assert.Equal("ZeroDivisionError in main.py, line 8: division by zero", viewModel.ErrorReportTitle);
-            Assert.Equal("8 | print(1 / 0 if 2 == helper.VERSION else \"ok\")", viewModel.ErrorReportCode);
+            Assert.Equal("ZeroDivisionError in main.py, line 12: division by zero", viewModel.ErrorReportTitle);
+            Assert.Equal("12 | print(1 / 0 if 2 == helper.VERSION else \"ok\")", viewModel.ErrorReportCode);
             Assert.Contains("divided by zero", viewModel.ErrorReportHint, StringComparison.Ordinal);
             Assert.StartsWith("updated", viewModel.Files.Single(f => "helper.py" == f.Name).Note, StringComparison.Ordinal);
             string record = viewModel.BuildRunRecord();
             Assert.Contains("Script:   main.py", record, StringComparison.Ordinal);
-            Assert.Contains("Error:    ZeroDivisionError in main.py, line 8", record, StringComparison.Ordinal);
+            Assert.Contains("Error:    ZeroDivisionError in main.py, line 12", record, StringComparison.Ordinal);
             Assert.Matches(@"\n +\d+\.\d  version 2\n", record);
             Assert.Equal("VERSION = 2\n", System.Text.Encoding.UTF8.GetString(viewModel.RecordFiles.Single(f => "helper.py" == f.Name).Data));
             ui.RunJobs();

@@ -20,7 +20,7 @@ Download the file for your computer from the repository's **Releases** page.
 | `ScriptRunner-Mac-AppleSilicon.zip` | Macs with an M-series chip | Unzip, move **Script Runner** to Applications, then open it with right-click > **Open** and confirm. On recent macOS versions, if it is still blocked, open **System Settings > Privacy & Security** and choose **Open Anyway**. |
 | `ScriptRunner-Mac-Intel.zip` | Macs with an Intel chip | As above |
 | `ScriptRunner-Android.apk` | Android 7 or newer | Open the file on the phone and allow installing apps from that source when Android asks. |
-| `runner_io-<version>-py3-none-any.whl` | The Python on a student's computer | Not an app: install it with pip so editors complete `say()`, `show()`, `plot()`, and the rest, and show their help. See [runner-io.md](runner-io.md#completion-and-help-in-your-editor). |
+| `runner_io-<version>-py3-none-any.whl` | The Python on a student's computer | Not an app: install it with pip so editors complete `say()`, `show()`, `plot()`, `draw`, and the rest, and show their help. See [runner-io.md](runner-io.md#completion-and-help-in-your-editor). |
 
 The apps are not signed with a paid developer certificate, which is why each system asks for confirmation the
 first time. Nothing needs to be installed besides the app itself.
@@ -60,10 +60,15 @@ When a script calls `plot()` (see [runner-io.md](runner-io.md)), a live graph ap
 between them to share the height. **Save data…** saves the numbers as a CSV file, and the graph is cleared at the
 start of each run.
 
+When a script draws with `draw` (see [runner-io.md](runner-io.md#drawing)), the drawing appears above the output, as
+it is drawn, beside the graph when there is one; drag the bars to share the space. **Save drawing…** saves it as an
+SVG file, the same file the script's `draw.save_svg()` writes on the Pi. The drawing is cleared at the start of each
+run.
+
 **Save run…** saves the latest run in a new folder inside one you choose: `output.txt` (a heading with the robot,
 script, files, how it ended, and any error, then the output with the seconds from the start on each line), a `files`
-folder with the files sent with the run as they were then, `plot.csv` when the script plotted, and a `shown` folder
-with the files it showed.
+folder with the files sent with the run as they were then, `plot.csv` when the script plotted, `drawing.svg` when it
+drew, and a `shown` folder with the files it showed.
 
 **Check robot** (SSH mode, beside **Run on Pi**) reports, without changing anything or moving the robot: the robot's
 name, 32-bit or 64-bit system, and Python; free storage; whether the distance sensor (I2C 0x29) and the OLED display
